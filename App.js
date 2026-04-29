@@ -1,20 +1,60 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+// App.js (updated)
+import React, { useEffect } from 'react';
+import { StatusBar, Platform } from 'react-native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import axios from 'axios';
+import { AuthProvider } from './src/context/AuthContext';
+import AppNavigator from './src/navigation/AppNavigator';
+import theme from './src/utils/theme';
+
+// Custom theme for navigation
+const NavigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: theme.colors.background,
+    card: theme.colors.background,
+    text: theme.colors.text,
+    border: theme.colors.border,
+    primary: theme.colors.primary,
+  },
+};
 
 export default function App() {
+  // Configure axios base URL based on platform
+  const baseURL = Platform.OS === 'ios'
+    ? 'http://localhost:5000'  // iOS simulator
+    : 'http://10.0.2.2:5000';   // Android emulator
+  
+  axios.defaults.baseURL = baseURL;
+  axios.defaults.timeout = 30000;
+  axios.defaults.headers.common['Content-Type'] = 'application/json';
+
+  // Set status bar configuration
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      StatusBar.setBarStyle('light-content');
+      StatusBar.setBackgroundColor(theme.colors.background);
+      StatusBar.setTranslucent(false);
+    }
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <NavigationContainer theme={NavigationTheme}>
+          <StatusBar
+            barStyle="light-content"
+            backgroundColor={theme.colors.background}
+            translucent={false}
+            hidden={false}
+          />
+          <AuthProvider>
+            <AppNavigator />
+          </AuthProvider>
+        </NavigationContainer>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
