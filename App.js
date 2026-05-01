@@ -24,8 +24,8 @@ const NavigationTheme = {
 export default function App() {
   // Configure axios base URL based on platform
   const baseURL = Platform.OS === 'ios'
-    ? 'http://localhost:5000'  // iOS simulator
-    : 'http://10.0.2.2:5000';   // Android emulator
+    ? 'http://192.168.100.10:5000'  
+    : 'http://192.168.100.10:5000';   
   
   axios.defaults.baseURL = baseURL;
   axios.defaults.timeout = 30000;

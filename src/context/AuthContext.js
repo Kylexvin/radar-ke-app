@@ -19,26 +19,28 @@ export const AuthProvider = ({ children }) => {
   const [userType, setUserType] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(false); // ADDED
 
   // Login for regular users
-  const loginUser = async (email, password) => {
+  const loginUser = async (emailOrUsername, password) => {
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
+      setLoading(true);
+      const response = await axios.post('/api/auth/login', { 
+        usernameOrEmail: emailOrUsername,
+        password 
+      });
       
       if (response.data.success) {
         const { user, tokens, userType } = response.data.data;
         
-        // Store tokens
         await AsyncStorage.setItem('accessToken', tokens.accessToken);
         await AsyncStorage.setItem('refreshToken', tokens.refreshToken);
         await AsyncStorage.setItem('userType', userType);
         
-        // Set auth state
         setUser(user);
         setUserType(userType);
         setIsAuthenticated(true);
         
-        // Set default auth header for future requests
         axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.accessToken}`;
         
         return { success: true, data: response.data };
@@ -50,28 +52,28 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.response?.data?.message || 'Login failed'
       };
+    } finally {
+      setLoading(false);
     }
   };
 
   // Login for providers
   const loginProvider = async (email, password) => {
     try {
+      setLoading(true);
       const response = await axios.post('/api/auth/provider/login', { email, password });
       
       if (response.data.success) {
         const { provider, tokens, userType } = response.data.data;
         
-        // Store tokens
         await AsyncStorage.setItem('accessToken', tokens.accessToken);
         await AsyncStorage.setItem('refreshToken', tokens.refreshToken);
         await AsyncStorage.setItem('userType', userType);
         
-        // Set auth state
         setProvider(provider);
         setUserType(userType);
         setIsAuthenticated(true);
         
-        // Set default auth header for future requests
         axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.accessToken}`;
         
         return { success: true, data: response.data };
@@ -83,28 +85,57 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.response?.data?.message || 'Login failed'
       };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const socialLogin = async (provider, token) => {
+    try {
+      setLoading(true);
+      const response = await axios.post('/api/auth/social-login', { provider, token });
+      
+      if (response.data.success) {
+        const { user, tokens, userType } = response.data.data;
+        
+        await AsyncStorage.setItem('accessToken', tokens.accessToken);
+        await AsyncStorage.setItem('refreshToken', tokens.refreshToken);
+        await AsyncStorage.setItem('userType', userType);
+        
+        setUser(user);
+        setUserType(userType);
+        setIsAuthenticated(true);
+        
+        axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.accessToken}`;
+        
+        return user;
+      }
+      
+      throw new Error(response.data.message);
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Social login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   // Register regular user
   const registerUser = async (userData) => {
     try {
+      setLoading(true);
       const response = await axios.post('/api/auth/register', userData);
       
       if (response.data.success) {
         const { user, tokens, userType } = response.data.data;
         
-        // Store tokens
         await AsyncStorage.setItem('accessToken', tokens.accessToken);
         await AsyncStorage.setItem('refreshToken', tokens.refreshToken);
         await AsyncStorage.setItem('userType', userType);
         
-        // Set auth state
         setUser(user);
         setUserType(userType);
         setIsAuthenticated(true);
         
-        // Set default auth header for future requests
         axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.accessToken}`;
         
         return { success: true, data: response.data };
@@ -116,28 +147,28 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.response?.data?.message || 'Registration failed'
       };
+    } finally {
+      setLoading(false);
     }
   };
 
   // Register provider
   const registerProvider = async (providerData) => {
     try {
+      setLoading(true);
       const response = await axios.post('/api/auth/provider/register', providerData);
       
       if (response.data.success) {
         const { provider, tokens, userType } = response.data.data;
         
-        // Store tokens
         await AsyncStorage.setItem('accessToken', tokens.accessToken);
         await AsyncStorage.setItem('refreshToken', tokens.refreshToken);
         await AsyncStorage.setItem('userType', userType);
         
-        // Set auth state
         setProvider(provider);
         setUserType(userType);
         setIsAuthenticated(true);
         
-        // Set default auth header for future requests
         axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.accessToken}`;
         
         return { success: true, data: response.data };
@@ -149,6 +180,8 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.response?.data?.message || 'Registration failed'
       };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -176,15 +209,12 @@ export const AuthProvider = ({ children }) => {
   // Logout
   const logout = async () => {
     try {
-      // Clear storage
       await AsyncStorage.removeItem('accessToken');
       await AsyncStorage.removeItem('refreshToken');
       await AsyncStorage.removeItem('userType');
       
-      // Clear auth header
       delete axios.defaults.headers.common['Authorization'];
       
-      // Reset state
       setUser(null);
       setProvider(null);
       setUserType(null);
@@ -205,10 +235,8 @@ export const AuthProvider = ({ children }) => {
         const storedUserType = await AsyncStorage.getItem('userType');
         
         if (accessToken && storedUserType) {
-          // Set auth header
           axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
           
-          // Fetch current user/profile based on userType
           if (storedUserType === 'user') {
             const response = await axios.get('/api/users/profile');
             if (response.data.success) {
@@ -227,7 +255,6 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Load auth error:', error);
-        // Token might be expired, try to refresh
         const newToken = await refreshAccessToken();
         if (!newToken) {
           await logout();
@@ -272,11 +299,13 @@ export const AuthProvider = ({ children }) => {
     userType,
     isLoading,
     isAuthenticated,
+    loading,
     loginUser,
     loginProvider,
     registerUser,
     registerProvider,
     logout,
+    socialLogin,
     refreshAccessToken,
   };
 

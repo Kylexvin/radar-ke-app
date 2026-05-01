@@ -1,7 +1,7 @@
 // src/navigation/MainNavigator.js
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons'; // Changed from react-native-vector-icons to expo/vector-icons
 import ScanNavigator from './ScanNavigator';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import theme from '../utils/theme';
@@ -30,11 +30,11 @@ export default function MainNavigator() {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
           if (route.name === 'Scan') {
-            iconName = focused ? 'scan' : 'scan-outline';
+            iconName = focused ? 'radio' : 'radio-outline';
           } else if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
-          return <Icon name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >

@@ -1,173 +1,219 @@
 // src/screens/auth/LoginScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
+  TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import GlassCard from '../../components/common/GlassCard';
-import InputField from '../../components/common/InputField';
-import GlassButton from '../../components/common/GlassButton';
-import LoadingOverlay from '../../components/common/LoadingOverlay';
 import theme from '../../utils/theme';
 
-const LoginScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { loginUser, loginProvider } = useAuth();
-  
-  const [email, setEmail] = useState('');
+const { width, height } = Dimensions.get('window');
+
+const LoginScreen = ({ navigation }) => {
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [userType, setUserType] = useState('user'); // 'user' or 'provider'
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  
+  const { loginUser, socialLogin, loading } = useAuth();
+  
+  // Animation values
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const slideAnim = useState(new Animated.Value(50))[0];
 
-  const selectedCategory = route.params?.selectedCategory;
-
-  const validate = () => {
-    const newErrors = {};
-    if (!email) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Email is invalid';
-    if (!password) newErrors.password = 'Password is required';
-    else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const handleLogin = async () => {
-    if (!validate()) return;
-    
-    setLoading(true);
-    
-    let result;
-    if (userType === 'user') {
-      result = await loginUser(email, password);
-    } else {
-      result = await loginProvider(email, password);
+    if (!emailOrUsername || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
     }
-    
-    setLoading(false);
-    
-    if (result.success) {
-      // Login successful - AppNavigator will handle navigation based on userType
-      Alert.alert('Success', 'Login successful!');
-    } else {
-      Alert.alert('Login Failed', result.message);
+
+    try {
+      setIsRedirecting(true);
+      setFeedback('Logging in...');
+
+      const result = await loginUser(emailOrUsername, password);
+      
+      if (result.success) {
+        setFeedback('Login successful!');
+        // FIX: Use replace instead of reset
+        navigation.getParent()?.replace('Main');
+        
+      } else {
+        throw new Error(result.message);
+      }
+      
+    } catch (err) { 
+      setIsRedirecting(false);
+      setFeedback('');
+      Alert.alert('Login Failed', err.message || 'Login failed');
     }
   };
 
-  const handleRegister = () => {
-    navigation.navigate('Register', { selectedCategory });
-  };
-
-  const toggleUserType = () => {
-    setUserType(prev => prev === 'user' ? 'provider' : 'user');
-    setErrors({});
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      setFeedback('Connecting to Google...');
+      
+      Alert.alert(
+        'Google Sign-In',
+        'Google Sign-In will be available in the next update.\n\nPlease use email login for now.',
+        [{ text: 'OK', onPress: () => setGoogleLoading(false) }]
+      );
+      setGoogleLoading(false);
+      setFeedback('');
+      
+    } catch (err) {
+      setGoogleLoading(false);
+      setFeedback('');
+      Alert.alert('Google Sign-In Failed', err.message || 'Could not sign in with Google');
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
+    <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
     >
-      <LoadingOverlay visible={loading} message="Logging in..." />
-      
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>
-            {selectedCategory 
-              ? `Find the best ${selectedCategory} services near you`
-              : 'Sign in to continue'}
-          </Text>
-        </View>
-
-        <GlassCard style={styles.card}>
-          {/* User Type Toggle */}
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                userType === 'user' && styles.toggleButtonActive,
-              ]}
-              onPress={() => setUserType('user')}
-            >
-              <Text
-                style={[
-                  styles.toggleText,
-                  userType === 'user' && styles.toggleTextActive,
-                ]}
-              >
-                User
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                userType === 'provider' && styles.toggleButtonActive,
-              ]}
-              onPress={() => setUserType('provider')}
-            >
-              <Text
-                style={[
-                  styles.toggleText,
-                  userType === 'provider' && styles.toggleTextActive,
-                ]}
-              >
-                Service Provider
-              </Text>
-            </TouchableOpacity>
+        <Animated.View 
+          style={[
+            styles.contentContainer,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+          ]}
+        >
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoIcon}>◎</Text>
+            </View>
+            <Text style={styles.brandName}>RADA KE</Text>
           </View>
+          
+          <Text style={styles.subtitle}>Sign in to continue exploring</Text>
 
-          <InputField
-            label="Email"
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            error={errors.email}
-          />
-
-          <InputField
-            label="Password"
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            error={errors.password}
-          />
-
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          {/* Google Sign-In Button */}
+          <TouchableOpacity 
+            style={styles.googleButton}
+            onPress={handleGoogleLogin}
+            disabled={googleLoading}
+          >
+            {googleLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <>
+                <Icon name="google" size={22} color="#DB4437" />
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </>
+            )}
           </TouchableOpacity>
 
-          <GlassButton
-            title="Sign In"
-            variant="primary"
-            onPress={handleLogin}
-            style={styles.loginButton}
-          />
-
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={handleRegister}>
-              <Text style={styles.registerLink}>Sign Up</Text>
-            </TouchableOpacity>
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR LOGIN WITH EMAIL</Text>
+            <View style={styles.dividerLine} />
           </View>
-        </GlassCard>
+
+          {/* Login Form */}
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email or Username</Text>
+              <View style={styles.inputWrapper}>
+                <Icon name="envelope" size={18} color={theme.colors.textDim} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email or username"
+                  placeholderTextColor={theme.colors.textFaint}
+                  value={emailOrUsername}
+                  onChangeText={setEmailOrUsername}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <View style={[styles.inputWrapper, styles.passwordInputWrapper]}>
+                  <Icon name="lock" size={18} color={theme.colors.textDim} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.passwordInput}
+                    placeholder="Enter your password"
+                    placeholderTextColor={theme.colors.textFaint}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                </View>
+                <TouchableOpacity 
+                  style={styles.eyeIcon}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Icon 
+                    name={showPassword ? "eye" : "eye-slash"} 
+                    size={20} 
+                    color={theme.colors.textDim} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.forgotPasswordContainer}
+              onPress={() => Alert.alert('Reset Password', 'Password reset will be available soon')}
+            >
+              <Text style={styles.forgotPasswordText}>
+                Forgot Password?
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.loginButton, (loading || isRedirecting) && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={loading || isRedirecting}
+            >
+              {loading || isRedirecting ? (
+                <ActivityIndicator color={theme.colors.background} />
+              ) : (
+                <Text style={styles.loginButtonText}>LOG IN</Text>
+              )}
+            </TouchableOpacity>
+            
+            {feedback ? <Text style={styles.feedbackText}>{feedback}</Text> : null}
+
+            <View style={styles.registerContainer}>
+              <Text style={styles.registerPrompt}>
+                Don't have an account?
+              </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                <Text style={styles.registerText}> Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -179,78 +225,171 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.xl,
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    alignItems: 'center',
   },
-  header: {
+  contentContainer: {
+    width: '100%',
+    maxWidth: 400,
+    marginTop: 40,
+  },
+  logoContainer: {
+    alignItems: 'center',
     marginBottom: theme.spacing.xl,
   },
-  title: {
-    fontSize: theme.fontSizes.xxl,
-    fontWeight: 'bold',
+  logoCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    ...theme.shadowRed,
+  },
+  logoIcon: {
+    fontSize: 45,
     color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
+    fontWeight: 'bold',
+  },
+  brandName: {
+    ...theme.typography.h1,
+    fontSize: 32,
+    color: theme.colors.text,
   },
   subtitle: {
-    fontSize: theme.fontSizes.md,
+    ...theme.typography.body,
     color: theme.colors.textMuted,
     textAlign: 'center',
+    marginBottom: theme.spacing.xl,
   },
-  card: {
-    padding: theme.spacing.lg,
-  },
-  toggleContainer: {
+  googleButton: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.glassStyle.borderRadius,
-    padding: 4,
-    marginBottom: theme.spacing.lg,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: theme.spacing.sm,
     alignItems: 'center',
-    borderRadius: theme.glassStyle.borderRadius - 4,
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: theme.spacing.lg,
+    gap: 12,
   },
-  toggleButtonActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  toggleText: {
-    color: theme.colors.textMuted,
-    fontSize: theme.fontSizes.sm,
+  googleButtonText: {
+    color: theme.colors.text,
+    fontSize: 16,
     fontWeight: '600',
   },
-  toggleTextActive: {
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  dividerText: {
+    color: theme.colors.textMuted,
+    paddingHorizontal: theme.spacing.md,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 1,
+  },
+  form: {
+    width: '100%',
+  },
+  inputContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  label: {
+    ...theme.typography.caption,
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '500',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    paddingHorizontal: theme.spacing.md,
+    height: 55,
+  },
+  inputIcon: {
+    marginRight: theme.spacing.sm,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
     color: theme.colors.text,
   },
-  forgotPassword: {
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInputWrapper: {
+    paddingRight: 50,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 15,
+    top: 17,
+  },
+  forgotPasswordContainer: {
     alignSelf: 'flex-end',
     marginBottom: theme.spacing.lg,
   },
   forgotPasswordText: {
-    color: theme.colors.primary,
-    fontSize: theme.fontSizes.sm,
+    color: theme.colors.primaryMuted,
+    fontSize: 14,
+    fontWeight: '500',
   },
   loginButton: {
-    marginBottom: theme.spacing.md,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+    ...theme.shadowRed,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  loginButtonText: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  feedbackText: {
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: theme.spacing.md,
+    fontSize: 13,
   },
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.xl,
+  },
+  registerPrompt: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
   },
   registerText: {
-    color: theme.colors.textMuted,
-    fontSize: theme.fontSizes.sm,
-  },
-  registerLink: {
     color: theme.colors.primary,
-    fontSize: theme.fontSizes.sm,
     fontWeight: '600',
+    fontSize: 14,
   },
 });
 
-export default LoginScreen;
+export default LoginScreen; 
