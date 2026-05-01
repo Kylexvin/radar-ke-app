@@ -1,14 +1,14 @@
 // src/screens/scan/ScanResultsScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ScrollView,
   RefreshControl,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -18,9 +18,11 @@ import CategoryChip from '../../components/common/CategoryChip';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import theme from '../../utils/theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const CARD_WIDTH = width - 32;
+const SNAP_INTERVAL = CARD_WIDTH + 12;
 
-// Dummy scan results data
+// Dummy scan results data (same as before)
 const dummyScanResults = {
   'fundi': [
     {
@@ -196,9 +198,12 @@ const ScanResultsScreen = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortBy, setSortBy] = useState('distance'); // 'distance', 'rating'
-  const [filterOpen, setFilterOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(selectedCategory);
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  
+  const flatListRef = useRef(null);
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadResults();
@@ -210,6 +215,8 @@ const ScanResultsScreen = () => {
     setTimeout(() => {
       const categoryResults = dummyScanResults[activeCategory] || dummyScanResults.fundi;
       setResults(categoryResults);
+      setSelectedProvider(null);
+      setCurrentIndex(0);
       setLoading(false);
     }, 1000);
   };
@@ -220,22 +227,32 @@ const ScanResultsScreen = () => {
     setRefreshing(false);
   };
 
-  const handleSort = (type) => {
-    setSortBy(type);
-    const sorted = [...results].sort((a, b) => {
-      if (type === 'distance') return a.distance - b.distance;
-      if (type === 'rating') return b.rating - a.rating;
-      return 0;
-    });
-    setResults(sorted);
-  };
-
   const handleCategoryPress = (categoryId) => {
     setActiveCategory(categoryId);
   };
 
   const handleProviderPress = (provider) => {
     navigation.navigate('ProviderDetail', { provider });
+  };
+
+  const onScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: slideAnim } } }],
+    { useNativeDriver: true }
+  );
+
+  const onMomentumScrollEnd = (event) => {
+    const index = Math.round(event.nativeEvent.contentOffset.x / SNAP_INTERVAL);
+    setCurrentIndex(index);
+    setSelectedProvider(results[index]);
+  };
+
+  const scrollToIndex = (index) => {
+    flatListRef.current?.scrollToOffset({
+      offset: index * SNAP_INTERVAL,
+      animated: true,
+    });
+    setCurrentIndex(index);
+    setSelectedProvider(results[index]);
   };
 
   const renderStars = (rating) => {
@@ -260,61 +277,64 @@ const ScanResultsScreen = () => {
     return categories.find(c => c.id === categoryId) || categories[0];
   };
 
-  const renderResultItem = ({ item }) => {
+  const renderResultCard = ({ item, index }) => {
     const categoryInfo = getCategoryInfo(item.category);
+    const isSelected = selectedProvider?.id === item.id;
     
     return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => handleProviderPress(item)}
-      >
-        <GlassCard style={styles.resultCard}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.categoryIcon, { backgroundColor: `${categoryInfo.color}20` }]}>
-              <Icon name={categoryInfo.icon} size={24} color={categoryInfo.color} />
+      <View style={styles.cardWrapper}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => handleProviderPress(item)}
+        >
+          <GlassCard style={[styles.resultCard, isSelected && styles.selectedCard]}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.categoryIcon, { backgroundColor: `${categoryInfo.color}20` }]}>
+                <Icon name={categoryInfo.icon} size={24} color={categoryInfo.color} />
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.providerName}>{item.name}</Text>
+                <View style={styles.ratingContainer}>
+                  {renderStars(item.rating)}
+                  <Text style={styles.reviewCount}>({item.reviewCount})</Text>
+                </View>
+              </View>
+              {item.isOpen ? (
+                <View style={styles.openBadge}>
+                  <Text style={styles.openText}>Open</Text>
+                </View>
+              ) : (
+                <View style={styles.closedBadge}>
+                  <Text style={styles.closedText}>Closed</Text>
+                </View>
+              )}
             </View>
-            <View style={styles.cardInfo}>
-              <Text style={styles.providerName}>{item.name}</Text>
-              <View style={styles.ratingContainer}>
-                {renderStars(item.rating)}
-                <Text style={styles.reviewCount}>({item.reviewCount})</Text>
+
+            <Text style={styles.description} numberOfLines={2}>
+              {item.description}
+            </Text>
+
+            <View style={styles.cardFooter}>
+              <View style={styles.footerItem}>
+                <Icon name="location-outline" size={14} color={theme.colors.textMuted} />
+                <Text style={styles.footerText}>{item.distance}km • {item.address}</Text>
+              </View>
+              <View style={styles.footerItem}>
+                <Icon name="cash-outline" size={14} color={theme.colors.textMuted} />
+                <Text style={styles.footerText}>{item.priceLevel}</Text>
               </View>
             </View>
-            {item.isOpen ? (
-              <View style={styles.openBadge}>
-                <Text style={styles.openText}>Open</Text>
-              </View>
-            ) : (
-              <View style={styles.closedBadge}>
-                <Text style={styles.closedText}>Closed</Text>
-              </View>
-            )}
-          </View>
 
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description}
-          </Text>
-
-          <View style={styles.cardFooter}>
-            <View style={styles.footerItem}>
-              <Icon name="location-outline" size={14} color={theme.colors.textMuted} />
-              <Text style={styles.footerText}>{item.distance}km • {item.address}</Text>
-            </View>
-            <View style={styles.footerItem}>
-              <Icon name="cash-outline" size={14} color={theme.colors.textMuted} />
-              <Text style={styles.footerText}>{item.priceLevel}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.viewDetailsButton}
-            onPress={() => handleProviderPress(item)}
-          >
-            <Text style={styles.viewDetailsText}>View Details</Text>
-            <Icon name="arrow-forward" size={16} color={theme.colors.primary} />
-          </TouchableOpacity>
-        </GlassCard>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.viewDetailsButton}
+              onPress={() => handleProviderPress(item)}
+            >
+              <Text style={styles.viewDetailsText}>View Details</Text>
+              <Icon name="arrow-forward" size={16} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </GlassCard>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -339,93 +359,99 @@ const ScanResultsScreen = () => {
   }
 
   const categoryInfo = getCategoryInfo(activeCategory);
+  const filteredResults = results;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+      {/* Categories Scroll - Top */}
+      <View style={styles.topSection}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Scan Results</Text>
+            <Text style={styles.headerSubtitle}>
+              {filteredResults.length} {filteredResults.length === 1 ? 'service' : 'services'} found within {scanRadius}km
+            </Text>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesScroll}
+          contentContainerStyle={styles.categoriesContainer}
         >
-          <Icon name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Scan Results</Text>
-          <Text style={styles.headerSubtitle}>
-            {results.length} {results.length === 1 ? 'service' : 'services'} found within {scanRadius}km
+          {categories.map((category) => (
+            <CategoryChip
+              key={category.id}
+              category={category.id}
+              label={category.label}
+              selected={activeCategory === category.id}
+              onPress={() => handleCategoryPress(category.id)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Map Area Placeholder - This would be your actual map component */}
+      <View style={styles.mapArea}>
+        <View style={styles.mapPlaceholder}>
+          <Icon name="map-outline" size={60} color={theme.colors.textMuted} />
+          <Text style={styles.mapPlaceholderText}>Map View</Text>
+          <Text style={styles.mapPlaceholderSubtext}>
+            Showing {filteredResults.length} results within {scanRadius}km
           </Text>
         </View>
       </View>
 
-      {/* Categories Scroll */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesScroll}
-        contentContainerStyle={styles.categoriesContainer}
-      >
-        {categories.map((category) => (
-          <CategoryChip
-            key={category.id}
-            category={category.id}
-            label={category.label}
-            selected={activeCategory === category.id}
-            onPress={() => handleCategoryPress(category.id)}
-          />
-        ))}
-      </ScrollView>
+      {/* Horizontal Swipeable Cards at Bottom */}
+      {filteredResults.length > 0 ? (
+        <View style={styles.bottomSheet}>
+          {/* Pagination Dots */}
+          <View style={styles.paginationContainer}>
+            {filteredResults.map((_, index) => (
+              <TouchableOpacity
+                key={index}
+                onPress={() => scrollToIndex(index)}
+                style={[
+                  styles.paginationDot,
+                  currentIndex === index && styles.paginationDotActive,
+                ]}
+              />
+            ))}
+          </View>
 
-      {/* Filter Bar */}
-      <View style={styles.filterBar}>
-        <View style={styles.filterLeft}>
-          <TouchableOpacity
-            style={[styles.filterButton, sortBy === 'distance' && styles.activeFilter]}
-            onPress={() => handleSort('distance')}
-          >
-            <Icon name="navigate" size={16} color={sortBy === 'distance' ? theme.colors.primary : theme.colors.textMuted} />
-            <Text style={[styles.filterText, sortBy === 'distance' && styles.activeFilterText]}>
-              Nearest
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, sortBy === 'rating' && styles.activeFilter]}
-            onPress={() => handleSort('rating')}
-          >
-            <Icon name="star" size={16} color={sortBy === 'rating' ? theme.colors.primary : theme.colors.textMuted} />
-            <Text style={[styles.filterText, sortBy === 'rating' && styles.activeFilterText]}>
-              Top Rated
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, filterOpen && styles.activeFilter]}
-            onPress={() => setFilterOpen(!filterOpen)}
-          >
-            <Icon name="funnel" size={16} color={filterOpen ? theme.colors.primary : theme.colors.textMuted} />
-            <Text style={[styles.filterText, filterOpen && styles.activeFilterText]}>
-              Open Now
-            </Text>
-          </TouchableOpacity>
+          <FlatList
+            ref={flatListRef}
+            data={filteredResults}
+            renderItem={renderResultCard}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={SNAP_INTERVAL}
+            decelerationRate="fast"
+            contentContainerStyle={styles.cardsList}
+            onScroll={onScroll}
+            onMomentumScrollEnd={onMomentumScrollEnd}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+              />
+            }
+          />
         </View>
-        <Text style={styles.resultCount}>{results.length}</Text>
-      </View>
-
-      {/* Results List */}
-      <FlatList
-        data={filterOpen ? results.filter(r => r.isOpen) : results}
-        renderItem={renderResultItem}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-        ListEmptyComponent={renderEmptyState}
-      />
+      ) : (
+        <View style={styles.emptyOverlay}>
+          {renderEmptyState()}
+        </View>
+      )}
 
       {/* Rescan Button */}
       <TouchableOpacity
@@ -433,7 +459,7 @@ const ScanResultsScreen = () => {
         onPress={() => navigation.goBack()}
       >
         <Icon name="scan-outline" size={20} color={theme.colors.text} />
-        <Text style={styles.rescanText}>Rescan Area</Text>
+        <Text style={styles.rescanText}>Adjust Scan Area</Text>
       </TouchableOpacity>
     </View>
   );
@@ -444,13 +470,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  topSection: {
+    backgroundColor: theme.colors.background,
+    zIndex: 10,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: theme.spacing.xl + 10,
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
-    backgroundColor: theme.colors.background,
   },
   backButton: {
     width: 40,
@@ -480,49 +509,70 @@ const styles = StyleSheet.create({
   categoriesContainer: {
     paddingHorizontal: theme.spacing.lg,
   },
-  filterBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  filterLeft: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+  mapArea: {
+    flex: 1,
+    backgroundColor: '#111',
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
     borderRadius: 20,
-    backgroundColor: theme.colors.surface,
-    gap: 4,
+    overflow: 'hidden',
   },
-  activeFilter: {
-    backgroundColor: `${theme.colors.primary}20`,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
+  mapPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1a1a1a',
   },
-  filterText: {
+  mapPlaceholderText: {
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.sm,
+  },
+  mapPlaceholderSubtext: {
     fontSize: theme.fontSizes.sm,
     color: theme.colors.textMuted,
+    marginTop: 4,
   },
-  activeFilterText: {
-    color: theme.colors.primary,
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: theme.spacing.xl + 10,
+    backgroundColor: 'transparent',
+    zIndex: 20,
   },
-  resultCount: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textMuted,
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+    gap: 8,
   },
-  listContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl * 2,
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  paginationDotActive: {
+    width: 20,
+    backgroundColor: theme.colors.primary,
+  },
+  cardsList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  cardWrapper: {
+    width: CARD_WIDTH,
+    marginRight: 12,
   },
   resultCard: {
     padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+  },
+  selectedCard: {
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -611,9 +661,20 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '600',
   },
+  emptyOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: theme.spacing.xl * 2,
+    paddingHorizontal: theme.spacing.xl,
   },
   emptyTitle: {
     fontSize: theme.fontSizes.lg,
@@ -626,7 +687,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     textAlign: 'center',
     marginTop: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.xl,
   },
   emptyButton: {
     marginTop: theme.spacing.lg,
@@ -634,7 +694,7 @@ const styles = StyleSheet.create({
   rescanButton: {
     position: 'absolute',
     bottom: theme.spacing.lg,
-    alignSelf: 'center',
+    right: theme.spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.primary,
@@ -642,6 +702,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
     borderRadius: 30,
     gap: 8,
+    zIndex: 30,
     ...theme.shadow,
   },
   rescanText: {

@@ -1,61 +1,139 @@
 // src/screens/scan/components/ProviderCard.js
 import React, { useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Linking } from 'react-native';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 
-const ProviderCard = ({ item, selected, onPress }) => {
+const ProviderCard = ({ item, selected, onPress, onWhatsAppPress }) => {
   const pressScale = useRef(new Animated.Value(1)).current;
+  const [imageError, setImageError] = React.useState(false);
 
   const onPressIn = () =>
     Animated.spring(pressScale, { toValue: 0.97, useNativeDriver: true, speed: 35 }).start();
   const onPressOut = () =>
     Animated.spring(pressScale, { toValue: 1, useNativeDriver: true, speed: 25 }).start();
 
+  const handleWhatsApp = () => {
+    if (item.whatsapp || item.phone) {
+      const phoneNumber = (item.whatsapp || item.phone).replace(/\D/g, '');
+      const url = `whatsapp://send?phone=${phoneNumber}`;
+      Linking.openURL(url).catch(() => {
+        Linking.openURL(`https://wa.me/${phoneNumber}`);
+      });
+    }
+    onWhatsAppPress?.(item);
+  };
+
+  const handleViewDashboard = () => {
+    onPress?.(item);
+  };
+
+  // Get category icon and color
+  const getCategoryInfo = () => {
+    const categoryMap = {
+      'fundi': { icon: 'wrench', color: '#3B82F6' },
+      'food': { icon: 'cutlery', color: '#F59E0B' },
+      'bodaboda': { icon: 'motorcycle', color: '#10B981' },
+      'salon': { icon: 'scissors', color: '#EC4899' },
+      'tutor': { icon: 'graduation-cap', color: '#8B5CF6' },
+      'delivery': { icon: 'truck', color: '#EF4444' },
+      'health': { icon: 'heartbeat', color: '#06B6D4' },
+    };
+    return categoryMap[item.category] || { icon: 'cube', color: '#6B7280' };
+  };
+
+  const categoryInfo = getCategoryInfo();
+  const displayIcon = item.icon || categoryInfo.icon;
+  const displayColor = item.color || categoryInfo.color;
+
   return (
     <Animated.View style={{ transform: [{ scale: pressScale }] }}>
       <TouchableOpacity
-        onPress={() => onPress(item)}
+        onPress={handleViewDashboard}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         activeOpacity={1}
         style={[
           styles.card,
-          selected && { borderColor: item.color + '50', backgroundColor: 'rgba(255,255,255,0.05)' },
+          selected && { borderColor: displayColor + '50', backgroundColor: 'rgba(255,255,255,0.05)' },
         ]}
       >
-        {selected && <View style={[styles.cardAccent, { backgroundColor: item.color }]} />}
+        {selected && <View style={[styles.cardAccent, { backgroundColor: displayColor }]} />}
 
-        <View style={[styles.cardAvatar, { backgroundColor: item.color + '18' }]}>
-          <Icon name={item.icon} size={16} color={item.color} />
+        {/* Avatar with optional image support */}
+        <View style={[styles.cardAvatar, { backgroundColor: displayColor + '18' }]}>
+          {item.profileImage && !imageError ? (
+            <Image 
+              source={{ uri: item.profileImage }} 
+              style={styles.avatarImage}
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <Icon name={displayIcon} size={16} color={displayColor} />
+          )}
         </View>
 
         <View style={styles.cardBody}>
           <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+          
           <View style={styles.cardRow}>
+            {/* Distance */}
             <Icon name="map-marker" size={10} color="rgba(255,255,255,0.3)" />
-            <Text style={styles.cardDist}>{item.distance}</Text>
+            <Text style={styles.cardDist}>{item.distance}km</Text>
+
+            {/* Status Badge */}
             <View style={[styles.badge, item.isActive ? styles.badgeOpen : styles.badgeBusy]}>
               <View style={[styles.badgeDot, { backgroundColor: item.isActive ? '#22C55E' : '#EAB308' }]} />
               <Text style={[styles.badgeText, { color: item.isActive ? '#22C55E' : '#EAB308' }]}>
-                {item.isActive ? 'Open' : 'Busy'}
+                {item.isActive ? 'Open' : (item.isBusy ? 'Busy' : 'Closed')}
               </Text>
             </View>
+
+            {/* Rating */}
             <View style={styles.ratingRow}>
               <Icon name="star" size={9} color="#EAB308" />
-              <Text style={styles.ratingText}>{item.rating}</Text>
+              <Text style={styles.ratingText}>{item.rating || '4.5'}</Text>
             </View>
+          </View>
+
+          {/* Additional info for dashboard view */}
+          <View style={styles.dashboardInfo}>
+            {item.verified && (
+              <View style={styles.verifiedBadge}>
+                <Icon name="check-circle" size={10} color="#22C55E" />
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
+            )}
+            {item.completedJobs && (
+              <Text style={styles.completedJobs}>
+                {item.completedJobs}+ jobs
+              </Text>
+            )}
           </View>
         </View>
 
         <View style={styles.cardRight}>
+          {/* Reach/Radius */}
           <Text style={styles.reachText}>
-            <Text style={styles.reachVal}>{item.radiusKm}km</Text>
+            <Text style={styles.reachVal}>{item.radiusKm || item.serviceRadius || 5}km</Text>
             {'\n'}
             <Text style={styles.reachLabel}>reach</Text>
           </Text>
-          <TouchableOpacity style={styles.waBtn} activeOpacity={0.75}>
-            <Icon name="whatsapp" size={15} color="#25D366" />
-          </TouchableOpacity>
+
+          {/* WhatsApp Button */}
+          {(item.whatsapp || item.phone) && (
+            <TouchableOpacity 
+              style={styles.waBtn} 
+              activeOpacity={0.75}
+              onPress={handleWhatsApp}
+            >
+              <Icon name="whatsapp" size={15} color="#25D366" />
+            </TouchableOpacity>
+          )}
+
+          {/* Dashboard Indicator */}
+          <View style={styles.dashboardIndicator}>
+            <Icon name="chevron-right" size={12} color="rgba(255,255,255,0.3)" />
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -89,6 +167,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   cardBody: {
     flex: 1,
@@ -105,6 +189,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+    marginBottom: 4,
   },
   cardDist: {
     fontSize: 11,
@@ -144,6 +229,25 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     fontWeight: '500',
   },
+  dashboardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  verifiedText: {
+    fontSize: 9,
+    color: '#22C55E',
+    fontWeight: '500',
+  },
+  completedJobs: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.4)',
+  },
   cardRight: {
     alignItems: 'flex-end',
     gap: 6,
@@ -171,6 +275,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(37,211,102,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dashboardIndicator: {
+    marginTop: 2,
   },
 });
 

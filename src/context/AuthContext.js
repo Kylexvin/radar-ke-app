@@ -228,44 +228,39 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Check auth status on app load
-  useEffect(() => {
-    const loadStoredAuth = async () => {
-      try {
-        const accessToken = await AsyncStorage.getItem('accessToken');
-        const storedUserType = await AsyncStorage.getItem('userType');
+// Check auth status on app load
+useEffect(() => {
+  const loadStoredAuth = async () => {
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const storedUserType = await AsyncStorage.getItem('userType');
+      
+      if (accessToken && storedUserType) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         
-        if (accessToken && storedUserType) {
-          axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-          
-          if (storedUserType === 'user') {
-            const response = await axios.get('/api/users/profile');
-            if (response.data.success) {
-              setUser(response.data.data.user);
-              setUserType('user');
-              setIsAuthenticated(true);
-            }
-          } else if (storedUserType === 'provider') {
-            const response = await axios.get('/api/providers/profile');
-            if (response.data.success) {
-              setProvider(response.data.data.provider);
-              setUserType('provider');
-              setIsAuthenticated(true);
-            }
-          }
+        // Don't fetch profile - just trust the stored token
+        if (storedUserType === 'user') {
+          setUserType('user');
+          setIsAuthenticated(true);
+          // Set a minimal user object if needed
+          setUser({ id: 'stored', username: 'user' });
+        } else if (storedUserType === 'provider') {
+          setUserType('provider');
+          setIsAuthenticated(true);
+          // Set a minimal provider object if needed
+          setProvider({ id: 'stored', name: 'provider' });
         }
-      } catch (error) {
-        console.error('Load auth error:', error);
-        const newToken = await refreshAccessToken();
-        if (!newToken) {
-          await logout();
-        }
-      } finally {
-        setIsLoading(false);
       }
-    };
-    
-    loadStoredAuth();
-  }, []);
+    } catch (error) {
+      console.error('Load auth error:', error);
+      await logout();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  loadStoredAuth();
+}, []);
 
   // Interceptor for token refresh
   useEffect(() => {

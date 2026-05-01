@@ -28,15 +28,38 @@ const ScanHeader = ({
 
   const HeaderContent = () => (
     <View style={styles.headerContent}>
-      {/* Logo Section */}
-      <View style={styles.logoSection}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>R</Text>
+      {/* Top Row: Logo on left, Radius control on right */}
+      <View style={styles.topRow}>
+        <View style={styles.logoSection}>
+          <View style={styles.logoCircle}>
+            <Text style={styles.logoText}>R</Text>
+          </View>
+          <Text style={styles.logoName}>RADA KE</Text>
         </View>
-        <Text style={styles.logoName}>RADA KE</Text>
+
+        {/* Radius Control - Now on the right */}
+        <View style={styles.radiusWrapper}>
+          <TouchableOpacity style={styles.radiusBtn} onPress={onToggleRadius} activeOpacity={0.7}>
+            <Icon name="dot-circle-o" size={13} color="#22C55E" />
+            <Text style={styles.radiusVal}>{searchRadius}km</Text>
+            <Icon name={showRadiusAdjust ? 'chevron-up' : 'chevron-down'} size={9} color="rgba(255,255,255,0.28)" />
+          </TouchableOpacity>
+
+          {showRadiusAdjust && (
+            <View style={styles.radiusAdjuster}>
+              <TouchableOpacity onPress={onRadiusDown} style={styles.adjBtn}>
+                <Icon name="minus" size={10} color="rgba(255,255,255,0.55)" />
+              </TouchableOpacity>
+              <Text style={styles.adjVal}>{searchRadius}</Text>
+              <TouchableOpacity onPress={onRadiusUp} style={styles.adjBtn}>
+                <Icon name="plus" size={10} color="#22C55E" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
 
-      {/* Search/Scan Section */}
+      {/* Search Section - Below */}
       <View style={styles.searchSection}>
         <Icon
           name={activeCategory ? activeCategory.icon : 'search'}
@@ -57,32 +80,12 @@ const ScanHeader = ({
           </TouchableOpacity>
         )}
       </View>
-
-      {/* Radius Control */}
-      <View style={styles.radiusSection}>
-        <TouchableOpacity style={styles.radiusBtn} onPress={onToggleRadius} activeOpacity={0.7}>
-          <Icon name="dot-circle-o" size={13} color="#22C55E" />
-          <Text style={styles.radiusVal}>{searchRadius}km</Text>
-          <Icon name={showRadiusAdjust ? 'chevron-up' : 'chevron-down'} size={9} color="rgba(255,255,255,0.28)" />
-        </TouchableOpacity>
-
-        {showRadiusAdjust && (
-          <View style={styles.radiusAdjuster}>
-            <TouchableOpacity onPress={onRadiusDown} style={styles.adjBtn}>
-              <Icon name="minus" size={10} color="rgba(255,255,255,0.55)" />
-            </TouchableOpacity>
-            <Text style={styles.adjVal}>{searchRadius}</Text>
-            <TouchableOpacity onPress={onRadiusUp} style={styles.adjBtn}>
-              <Icon name="plus" size={10} color="#22C55E" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
     </View>
   );
 
+  // Changed from insets.top + 8 to insets.top + 5 (5px below status bar)
   return (
-    <View style={[styles.headerWrap, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+    <View style={[styles.headerWrap, { paddingTop: insets.top + 5 }]} pointerEvents="box-none">
       {Platform.OS === 'ios' ? (
         <BlurView intensity={20} tint="dark" style={styles.headerBlur}>
           <HeaderContent />
@@ -117,13 +120,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 12,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingBottom: 4,
+  },
   logoSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingBottom: 8,
   },
   logoCircle: {
     width: 28,
@@ -144,28 +150,8 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     letterSpacing: 0.5,
   },
-  searchSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '500',
-    padding: 0,
-    height: 20,
-  },
-  radiusSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 4,
+  radiusWrapper: {
+    alignItems: 'flex-end',
   },
   radiusBtn: {
     flexDirection: 'row',
@@ -189,6 +175,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    marginTop: 6,
   },
   adjBtn: {
     width: 28,
@@ -204,6 +191,23 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     minWidth: 30,
     textAlign: 'center',
+  },
+  searchSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+    padding: 0,
+    height: 20,
   },
 });
 

@@ -1,5 +1,5 @@
 // src/screens/scan/components/ResultsPanel.js
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProviderCard from './ProviderCard';
 
 const { width, height } = Dimensions.get('window');
+const CARD_WIDTH = width - 48;
+const SNAP_INTERVAL = CARD_WIDTH + 12;
+
+// Create animated FlatList
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 const ResultsPanel = ({
   scanState,
@@ -28,11 +33,58 @@ const ResultsPanel = ({
   sheetAnim,
 }) => {
   const insets = useSafeAreaInsets();
+  const flatListRef = useRef(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollAnim = useRef(new Animated.Value(0)).current;
 
   const sheetTranslateY = sheetAnim.interpolate({
     inputRange: [0, 0.3, 1],
     outputRange: [height * 0.85, height * 0.65, 0]
   });
+
+  const onScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollAnim } } }],
+    { useNativeDriver: true }
+  );
+
+  const onMomentumScrollEnd = (event) => {
+    const index = Math.round(event.nativeEvent.contentOffset.x / SNAP_INTERVAL);
+    setCurrentIndex(index);
+    if (providers[index]) {
+      onSelectProvider(providers[index]);
+    }
+  };
+
+  const scrollToIndex = (index) => {
+    flatListRef.current?.scrollToOffset({
+      offset: index * SNAP_INTERVAL,
+      animated: true,
+    });
+    setCurrentIndex(index);
+    onSelectProvider(providers[index]);
+  };
+
+  const renderHorizontalCard = ({ item, index }) => (
+    <View style={styles.cardWrapper}>
+      <ProviderCard
+        item={item}
+        selected={selectedProvider?.id === item.id}
+        onPress={onSelectProvider}
+        horizontal={true}
+      />
+    </View>
+  );
+
+  const renderDot = (_, index) => (
+    <TouchableOpacity
+      key={index}
+      onPress={() => scrollToIndex(index)}
+      style={[
+        styles.paginationDot,
+        currentIndex === index && styles.paginationDotActive,
+      ]}
+    />
+  );
 
   return (
     <Animated.View
@@ -41,7 +93,7 @@ const ResultsPanel = ({
         {
           paddingBottom: insets.bottom + 10,
           transform: [{ translateY: sheetTranslateY }],
-          maxHeight: isSheetCollapsed ? height * 0.2 : height * 0.52,
+          maxHeight: isSheetCollapsed ? height * 0.2 : height * 0.45,
         },
       ]}
     >
@@ -95,20 +147,35 @@ const ResultsPanel = ({
                 <View key={i} style={[styles.skeleton, { opacity: 0.055 - i * 0.013 }]} />
               ))}
             </View>
+          ) : providers.length > 0 ? (
+            <>
+              {/* Horizontal Cards - Using AnimatedFlatList */}
+              <AnimatedFlatList
+                ref={flatListRef}
+                data={providers}
+                keyExtractor={item => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={SNAP_INTERVAL}
+                decelerationRate="fast"
+                contentContainerStyle={styles.horizontalList}
+                renderItem={renderHorizontalCard}
+                onScroll={onScroll}
+                onMomentumScrollEnd={onMomentumScrollEnd}
+                scrollEventThrottle={16}
+              />
+              
+              {/* Pagination Dots */}
+              <View style={styles.paginationContainer}>
+                {providers.map(renderDot)}
+              </View>
+            </>
           ) : (
-            <FlatList
-              data={providers}
-              keyExtractor={i => i.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listPad}
-              renderItem={({ item }) => (
-                <ProviderCard
-                  item={item}
-                  selected={selectedProvider?.id === item.id}
-                  onPress={onSelectProvider}
-                />
-              )}
-            />
+            <View style={styles.emptyResults}>
+              <Icon name="frown-o" size={32} color="rgba(255,255,255,0.2)" />
+              <Text style={styles.emptyText}>No services found</Text>
+              <Text style={styles.emptySubtext}>Try adjusting your search radius</Text>
+            </View>
           )}
         </>
       )}
@@ -218,10 +285,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
   },
-  listPad: {
-    padding: 12,
+  horizontalList: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 12,
+  },
+  cardWrapper: {
+    width: CARD_WIDTH,
+    marginRight: 12,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
     gap: 8,
-    paddingBottom: 20,
+  },
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  paginationDotActive: {
+    width: 20,
+    backgroundColor: '#22C55E',
+  },
+  emptyResults: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '500',
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.3)',
   },
 });
 
