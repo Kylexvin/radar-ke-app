@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
@@ -69,6 +70,7 @@ const ScanMap = forwardRef(({
   selectedProvider,
   onSelectProvider,
   onMapInteraction,
+  onMapPress,
   userCoords,
   setUserCoords,
   locationStatus,
@@ -80,30 +82,44 @@ const ScanMap = forwardRef(({
 }, ref) => {
   const mapRef = useRef(null);
   const [userScreenPos, setUserScreenPos] = useState(null);
+  const lastScreenPos = useRef(null);
+  // Custom scan origin from long-press
+  const [customOrigin, setCustomOrigin] = useState(null);
+  const customOriginAnim = useRef(new Animated.Value(0)).current;
+
   const SONAR_SIZE = width * 0.72;
+
+  // The actual scan origin: custom if set, otherwise user location
+  const scanOrigin = customOrigin || userCoords;
+
+  const updateUserScreenPosition = useCallback(async () => {
+    if (!mapRef.current || !scanOrigin) return;
+    try {
+      const point = await mapRef.current.pointForCoordinate(scanOrigin);
+      if (point) {
+        setUserScreenPos({ x: point.x, y: point.y });
+        lastScreenPos.current = { x: point.x, y: point.y };
+      }
+    } catch (error) {
+      const fallback = { x: width / 2, y: height / 2 };
+      setUserScreenPos(fallback);
+      lastScreenPos.current = fallback;
+    }
+  }, [scanOrigin]);
 
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration) => mapRef.current?.animateToRegion(region, duration),
     getMapRef: () => mapRef.current,
     pointForCoordinate: (coords) => mapRef.current?.pointForCoordinate(coords),
+    refreshUserPosition: updateUserScreenPosition,
   }));
 
-  const updateUserScreenPosition = useCallback(async () => {
-    if (!mapRef.current || !userCoords) return;
-    try {
-      const point = await mapRef.current.pointForCoordinate(userCoords);
-      if (point) setUserScreenPos({ x: point.x, y: point.y });
-    } catch (error) {
-      setUserScreenPos({ x: width / 2, y: height / 2 });
-    }
-  }, [userCoords]);
-
   useEffect(() => {
-    if (userCoords && mapRef.current) {
+    if (scanOrigin && mapRef.current) {
       const timeout = setTimeout(updateUserScreenPosition, 100);
       return () => clearTimeout(timeout);
     }
-  }, [userCoords, updateUserScreenPosition]);
+  }, [scanOrigin, updateUserScreenPosition]);
 
   useEffect(() => {
     let subscriber = null;
@@ -129,8 +145,34 @@ const ScanMap = forwardRef(({
 
   const onMapRegionChange = useCallback(() => {
     onMapInteraction?.();
+  }, [onMapInteraction]);
+
+  const onMapRegionChangeComplete = useCallback(() => {
     updateUserScreenPosition();
-  }, [updateUserScreenPosition, onMapInteraction]);
+  }, [updateUserScreenPosition]);
+
+  const handleLongPress = useCallback((e) => {
+    if (scanState !== 'idle') return;
+    const coords = e.nativeEvent.coordinate;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setCustomOrigin(coords);
+    customOriginAnim.setValue(0);
+    Animated.spring(customOriginAnim, { toValue: 1, tension: 60, friction: 9, useNativeDriver: true }).start();
+    mapRef.current?.animateToRegion({
+      ...coords,
+      latitudeDelta: 0.025,
+      longitudeDelta: 0.025,
+    }, 400);
+  }, [scanState]);
+
+  const clearCustomOrigin = useCallback(() => {
+    setCustomOrigin(null);
+    customOriginAnim.setValue(0);
+  }, []);
+
+  // Use last known position as fallback so sonar doesn't flicker when position recalculates
+  const sonarPos = userScreenPos || lastScreenPos.current;
+  const circleColor = activeCategory?.color ?? '#22C55E';
 
   return (
     <View style={styles.container}>
@@ -145,8 +187,10 @@ const ScanMap = forwardRef(({
         showsCompass={false}
         toolbarEnabled={false}
         onRegionChange={onMapRegionChange}
-        onRegionChangeComplete={onMapRegionChange}
+        onRegionChangeComplete={onMapRegionChangeComplete}
         onPanDrag={onMapInteraction}
+        onPress={onMapPress}
+        onLongPress={handleLongPress}
       >
         {userCoords && (
           <>
@@ -158,13 +202,23 @@ const ScanMap = forwardRef(({
               </View>
             </Marker>
             <Circle
-              center={userCoords}
+              center={scanOrigin || userCoords}
               radius={searchRadius * 1000}
-              fillColor="rgba(34,197,94,0.025)"
-              strokeColor="rgba(34,197,94,0.1)"
+              fillColor={circleColor + '08'}
+              strokeColor={circleColor + '28'}
               strokeWidth={1}
             />
           </>
+        )}
+
+        {/* Custom scan origin marker */}
+        {customOrigin && (
+          <Marker coordinate={customOrigin} anchor={{ x: 0.5, y: 0.5 }} zIndex={90}>
+            <View style={styles.customOriginWrap}>
+              <View style={styles.customOriginRing} />
+              <View style={styles.customOriginCore} />
+            </View>
+          </Marker>
         )}
 
         {scanState === 'results' && providers.map(p => (
@@ -194,16 +248,39 @@ const ScanMap = forwardRef(({
         ))}
       </MapView>
 
-      {scanState === 'scanning' && userScreenPos && (
-        <View style={[styles.sonarContainer, {
-          left: userScreenPos.x - SONAR_SIZE / 2,
-          top: userScreenPos.y - SONAR_SIZE / 2,
-          width: SONAR_SIZE,
-          height: SONAR_SIZE,
-        }]}>
-          <SonarPing anim={sonarAnim1} color={activeCategory?.color ?? '#22C55E'} size={SONAR_SIZE} />
-          <SonarPing anim={sonarAnim2} color={activeCategory?.color ?? '#22C55E'} size={SONAR_SIZE} />
-          <SonarPing anim={sonarAnim3} color={activeCategory?.color ?? '#22C55E'} size={SONAR_SIZE} />
+      {/* Custom origin label + clear button */}
+      {customOrigin && scanState === 'idle' && (
+        <Animated.View
+          style={[
+            styles.customOriginBanner,
+            {
+              opacity: customOriginAnim,
+              transform: [{ scale: customOriginAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+            },
+          ]}
+        >
+          <Icon name="map-pin" size={11} color="#EAB308" />
+          <Text style={styles.customOriginText}>Scanning from custom point</Text>
+          <TouchableOpacity onPress={clearCustomOrigin} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="times" size={11} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
+      {/* Sonar rings rendered at user/custom origin screen position */}
+      {scanState === 'scanning' && sonarPos && (
+        <View
+          pointerEvents="none"
+          style={[styles.sonarContainer, {
+            left: sonarPos.x - SONAR_SIZE / 2,
+            top: sonarPos.y - SONAR_SIZE / 2,
+            width: SONAR_SIZE,
+            height: SONAR_SIZE,
+          }]}
+        >
+          <SonarPing anim={sonarAnim1} color={circleColor} size={SONAR_SIZE} />
+          <SonarPing anim={sonarAnim2} color={circleColor} size={SONAR_SIZE} />
+          <SonarPing anim={sonarAnim3} color={circleColor} size={SONAR_SIZE} />
         </View>
       )}
     </View>
@@ -216,10 +293,34 @@ const styles = StyleSheet.create({
   userRingOuter: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(34,197,94,0.15)' },
   userRingInner: { position: 'absolute', width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)' },
   userCore: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#22C55E', borderWidth: 2.5, borderColor: '#080808' },
+  customOriginWrap: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  customOriginRing: { position: 'absolute', width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(234,179,8,0.4)', borderStyle: 'dashed' },
+  customOriginCore: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#EAB308', borderWidth: 2, borderColor: '#080808' },
   pinWrap: { alignItems: 'center', justifyContent: 'center' },
   pinOuter: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(8,8,8,0.7)' },
   pinInner: { width: 8, height: 8, borderRadius: 4 },
   sonarContainer: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  customOriginBanner: {
+    position: 'absolute',
+    bottom: 120,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(9,9,11,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(234,179,8,0.28)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    zIndex: 20,
+  },
+  customOriginText: {
+    fontSize: 11,
+    color: '#EAB308',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
 });
 
 export default ScanMap;

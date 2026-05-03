@@ -1,8 +1,8 @@
-// src/navigation/MainNavigator.js
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons'; // Changed from react-native-vector-icons to expo/vector-icons
+import { Ionicons } from '@expo/vector-icons';
 import ScanNavigator from './ScanNavigator';
+import MarketplaceNavigator from './MarketplaceNavigator'; // new
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import theme from '../utils/theme';
 
@@ -31,6 +31,8 @@ export default function MainNavigator() {
           let iconName;
           if (route.name === 'Scan') {
             iconName = focused ? 'radio' : 'radio-outline';
+          } else if (route.name === 'Marketplace') {
+            iconName = focused ? 'storefront' : 'storefront-outline';
           } else if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -39,6 +41,7 @@ export default function MainNavigator() {
       })}
     >
       <Tab.Screen name="Scan" component={ScanNavigator} />
+      <Tab.Screen name="Marketplace" component={MarketplaceNavigator} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );

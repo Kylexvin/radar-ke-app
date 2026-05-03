@@ -6,9 +6,11 @@ import {
   StatusBar,
   Animated,
   TouchableOpacity,
+  Text,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome as Icon } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import ScanHeader from './components/ScanHeader';
 import ScanMap from './components/ScanMap';
 import ResultsPanel from './components/ResultsPanel';
@@ -18,7 +20,7 @@ import { CATEGORIES, DUMMY_PROVIDERS } from './constants';
 const MapScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
-  
+
   const [locationStatus, setLocationStatus] = useState('loading');
   const [userCoords, setUserCoords] = useState(null);
   const [userInteracted, setUserInteracted] = useState(false);
@@ -30,12 +32,27 @@ const MapScreen = ({ navigation }) => {
   const [showRadiusAdjust, setShowRadiusAdjust] = useState(false);
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false);
 
+  // Toast state
+  const [toastMsg, setToastMsg] = useState('');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const sonarAnim1 = useRef(new Animated.Value(0)).current;
   const sonarAnim2 = useRef(new Animated.Value(0)).current;
   const sonarAnim3 = useRef(new Animated.Value(0)).current;
   const pinsOpacity = useRef(new Animated.Value(0)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
+
+  // Toast helper
+  const showToast = useCallback((msg) => {
+    setToastMsg(msg);
+    toastAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.delay(1800),
+      Animated.timing(toastAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
+    ]).start();
+  }, [toastAnim]);
 
   const fireSonar = useCallback(() => {
     const pulse = (anim, delay) => {
@@ -46,13 +63,13 @@ const MapScreen = ({ navigation }) => {
         delay,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (finished && scanState === 'scanning') pulse(anim, 0);
+        if (finished) pulse(anim, 0);
       });
     };
     pulse(sonarAnim1, 0);
     pulse(sonarAnim2, 720);
     pulse(sonarAnim3, 1440);
-  }, [scanState]);
+  }, []);
 
   const stopSonar = () => {
     sonarAnim1.stopAnimation();
@@ -61,26 +78,41 @@ const MapScreen = ({ navigation }) => {
   };
 
   const handleScan = useCallback(async (cat) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setActiveCategory(cat);
     setSelectedProvider(null);
     setProviders([]);
     setScanState('scanning');
     setIsSheetCollapsed(false);
     pinsOpacity.setValue(0);
+
+    // Refresh user screen position before firing sonar so rings sit on the dot
+    await mapRef.current?.refreshUserPosition();
     fireSonar();
 
     setTimeout(() => {
       stopSonar();
-      setProviders(DUMMY_PROVIDERS.filter(p => p.category === cat.id));
+      const found = DUMMY_PROVIDERS.filter(p => p.category === cat.id);
+      setProviders(found);
       setScanState('results');
       Animated.parallel([
         Animated.timing(pinsOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
         Animated.spring(sheetAnim, { toValue: 1, tension: 55, friction: 11, useNativeDriver: true }),
       ]).start();
+
+      // Toast feedback
+      if (found.length > 0) {
+        showToast(`${found.length} ${cat.label} provider${found.length > 1 ? 's' : ''} found`);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        showToast(`No ${cat.label} providers nearby`);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
     }, 2200);
-  }, [fireSonar]);
+  }, [fireSonar, showToast]);
 
   const handleSelectProvider = useCallback((provider) => {
+    Haptics.selectionAsync();
     setSelectedProvider(prev => prev?.id === provider.id ? null : provider);
     mapRef.current?.animateToRegion({
       latitude: provider.coordinates.latitude - 0.005,
@@ -108,11 +140,21 @@ const MapScreen = ({ navigation }) => {
   }, [isSheetCollapsed]);
 
   const adjustRadius = (delta) => setSearchRadius(prev => Math.min(50, Math.max(1, prev + delta)));
+
   const recenter = useCallback(() => {
     if (!userCoords) return;
     setUserInteracted(false);
     mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.025, longitudeDelta: 0.025 }, 500);
   }, [userCoords]);
+
+  // Collapse sheet on outside tap (when results showing)
+  const handleMapPress = useCallback(() => {
+    if (scanState === 'results' && !isSheetCollapsed) {
+      toggleSheetCollapse();
+    }
+  }, [scanState, isSheetCollapsed, toggleSheetCollapse]);
+
+  const toastTranslateY = toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] });
 
   return (
     <View style={styles.root}>
@@ -127,6 +169,7 @@ const MapScreen = ({ navigation }) => {
         selectedProvider={selectedProvider}
         onSelectProvider={handleSelectProvider}
         onMapInteraction={() => setUserInteracted(true)}
+        onMapPress={handleMapPress}
         userCoords={userCoords}
         setUserCoords={setUserCoords}
         locationStatus={locationStatus}
@@ -148,6 +191,22 @@ const MapScreen = ({ navigation }) => {
         onClear={clearScan}
         headerOpacity={headerOpacity}
       />
+
+      {/* Toast notification */}
+      <Animated.View
+        style={[
+          styles.toast,
+          {
+            opacity: toastAnim,
+            transform: [{ translateY: toastTranslateY }],
+            top: insets.top + 130,
+          },
+        ]}
+        pointerEvents="none"
+      >
+        <Icon name="map-marker" size={11} color="#22C55E" />
+        <Text style={styles.toastText}>{toastMsg}</Text>
+      </Animated.View>
 
       {userInteracted && locationStatus === 'granted' && (
         <TouchableOpacity
@@ -194,6 +253,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 25,
+  },
+  toast: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(9,9,11,0.93)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.22)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 40,
+  },
+  toastText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.2,
   },
 });
 

@@ -18,7 +18,6 @@ const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
 const SNAP_INTERVAL = CARD_WIDTH + 12;
 
-// Create animated FlatList
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 const ResultsPanel = ({
@@ -37,9 +36,11 @@ const ResultsPanel = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollAnim = useRef(new Animated.Value(0)).current;
 
+  const catColor = activeCategory?.color ?? '#22C55E';
+
   const sheetTranslateY = sheetAnim.interpolate({
     inputRange: [0, 0.3, 1],
-    outputRange: [height * 0.85, height * 0.65, 0]
+    outputRange: [height * 0.85, height * 0.65, 0],
   });
 
   const onScroll = Animated.event(
@@ -64,7 +65,7 @@ const ResultsPanel = ({
     onSelectProvider(providers[index]);
   };
 
-  const renderHorizontalCard = ({ item, index }) => (
+  const renderHorizontalCard = ({ item }) => (
     <View style={styles.cardWrapper}>
       <ProviderCard
         item={item}
@@ -81,7 +82,7 @@ const ResultsPanel = ({
       onPress={() => scrollToIndex(index)}
       style={[
         styles.paginationDot,
-        currentIndex === index && styles.paginationDotActive,
+        currentIndex === index && [styles.paginationDotActive, { backgroundColor: catColor }],
       ]}
     />
   );
@@ -97,16 +98,17 @@ const ResultsPanel = ({
         },
       ]}
     >
-      <TouchableOpacity onPress={onToggleCollapse} activeOpacity={0.7}>
-        <View style={styles.sheetHandle} />
+      {/* Handle — tap to toggle collapse */}
+      <TouchableOpacity onPress={onToggleCollapse} activeOpacity={0.7} style={styles.handleArea}>
+        <View style={[styles.sheetHandle, isSheetCollapsed && { backgroundColor: catColor + '60' }]} />
       </TouchableOpacity>
 
       <View style={styles.sheetTop}>
         <View style={styles.sheetLeft}>
           {activeCategory && (
-            <View style={[styles.catBadge, { backgroundColor: activeCategory.color + '1a' }]}>
-              <Icon name={activeCategory.icon} size={10} color={activeCategory.color} />
-              <Text style={[styles.catBadgeText, { color: activeCategory.color }]}>
+            <View style={[styles.catBadge, { backgroundColor: catColor + '1a' }]}>
+              <Icon name={activeCategory.icon} size={10} color={catColor} />
+              <Text style={[styles.catBadgeText, { color: catColor }]}>
                 {activeCategory.label}
               </Text>
             </View>
@@ -118,7 +120,11 @@ const ResultsPanel = ({
 
         {scanState === 'results' && !isSheetCollapsed && (
           <View style={styles.sheetRight}>
-            <Text style={styles.sheetCount}>{providers.length} found</Text>
+            <View style={[styles.countPill, { backgroundColor: catColor + '18', borderColor: catColor + '30' }]}>
+              <Text style={[styles.sheetCount, { color: catColor }]}>
+                {providers.length} found
+              </Text>
+            </View>
             <TouchableOpacity onPress={onClearScan} style={styles.sheetClose}>
               <Icon name="times" size={12} color="rgba(255,255,255,0.38)" />
             </TouchableOpacity>
@@ -138,8 +144,8 @@ const ResultsPanel = ({
           {scanState === 'scanning' ? (
             <View style={styles.skeletonWrap}>
               <View style={styles.scanningRow}>
-                <ActivityIndicator size="small" color={activeCategory?.color ?? '#22C55E'} />
-                <Text style={[styles.scanningText, { color: activeCategory?.color ?? '#22C55E' }]}>
+                <ActivityIndicator size="small" color={catColor} />
+                <Text style={[styles.scanningText, { color: catColor }]}>
                   Locating services near you
                 </Text>
               </View>
@@ -149,7 +155,6 @@ const ResultsPanel = ({
             </View>
           ) : providers.length > 0 ? (
             <>
-              {/* Horizontal Cards - Using AnimatedFlatList */}
               <AnimatedFlatList
                 ref={flatListRef}
                 data={providers}
@@ -164,17 +169,21 @@ const ResultsPanel = ({
                 onMomentumScrollEnd={onMomentumScrollEnd}
                 scrollEventThrottle={16}
               />
-              
-              {/* Pagination Dots */}
               <View style={styles.paginationContainer}>
                 {providers.map(renderDot)}
               </View>
             </>
           ) : (
+            // Empty state
             <View style={styles.emptyResults}>
-              <Icon name="frown-o" size={32} color="rgba(255,255,255,0.2)" />
-              <Text style={styles.emptyText}>No services found</Text>
-              <Text style={styles.emptySubtext}>Try adjusting your search radius</Text>
+              <View style={[styles.emptyIconWrap, { borderColor: catColor + '25' }]}>
+                <Icon name="search" size={22} color={catColor + '60'} />
+              </View>
+              <Text style={styles.emptyTitle}>No {activeCategory?.label ?? 'services'} nearby</Text>
+              <Text style={styles.emptySubtext}>Try increasing your search radius or a different area</Text>
+              <TouchableOpacity onPress={onClearScan} style={[styles.emptyBtn, { borderColor: catColor + '40' }]}>
+                <Text style={[styles.emptyBtnText, { color: catColor }]}>Change category</Text>
+              </TouchableOpacity>
             </View>
           )}
         </>
@@ -196,21 +205,21 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
     zIndex: 30,
   },
+  handleArea: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
   sheetHandle: {
     width: 40,
     height: 4,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 4,
   },
   sheetTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
     paddingBottom: 12,
   },
   sheetLeft: { gap: 4 },
@@ -237,11 +246,18 @@ const styles = StyleSheet.create({
   sheetRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+  },
+  countPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   sheetCount: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   sheetClose: {
     width: 28,
@@ -305,26 +321,51 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   paginationDotActive: {
     width: 20,
-    backgroundColor: '#22C55E',
+    borderRadius: 3,
   },
+  // Empty state
   emptyResults: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    gap: 8,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    gap: 10,
   },
-  emptyText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '500',
+  emptyIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
   },
   emptySubtext: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.3)',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  emptyBtn: {
+    marginTop: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  emptyBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
 
