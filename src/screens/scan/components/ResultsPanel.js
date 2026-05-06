@@ -30,6 +30,7 @@ const ResultsPanel = ({
   isSheetCollapsed,
   onToggleCollapse,
   sheetAnim,
+  navigation,         // passed from MapScreen
 }) => {
   const insets = useSafeAreaInsets();
   const flatListRef = useRef(null);
@@ -57,12 +58,15 @@ const ResultsPanel = ({
   };
 
   const scrollToIndex = (index) => {
-    flatListRef.current?.scrollToOffset({
-      offset: index * SNAP_INTERVAL,
-      animated: true,
-    });
+    flatListRef.current?.scrollToOffset({ offset: index * SNAP_INTERVAL, animated: true });
     setCurrentIndex(index);
     onSelectProvider(providers[index]);
+  };
+
+  const handleNavigateToProvider = (provider) => {
+    // Select on map first, then navigate
+    onSelectProvider(provider);
+    navigation?.navigate('ProviderDetail', { provider });
   };
 
   const renderHorizontalCard = ({ item }) => (
@@ -71,7 +75,7 @@ const ResultsPanel = ({
         item={item}
         selected={selectedProvider?.id === item.id}
         onPress={onSelectProvider}
-        horizontal={true}
+        onNavigate={handleNavigateToProvider}
       />
     </View>
   );
@@ -98,7 +102,7 @@ const ResultsPanel = ({
         },
       ]}
     >
-      {/* Handle — tap to toggle collapse */}
+      {/* Handle */}
       <TouchableOpacity onPress={onToggleCollapse} activeOpacity={0.7} style={styles.handleArea}>
         <View style={[styles.sheetHandle, isSheetCollapsed && { backgroundColor: catColor + '60' }]} />
       </TouchableOpacity>
@@ -174,7 +178,6 @@ const ResultsPanel = ({
               </View>
             </>
           ) : (
-            // Empty state
             <View style={styles.emptyResults}>
               <View style={[styles.emptyIconWrap, { borderColor: catColor + '25' }]}>
                 <Icon name="search" size={22} color={catColor + '60'} />
@@ -194,179 +197,61 @@ const ResultsPanel = ({
 
 const styles = StyleSheet.create({
   sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(9,9,11,0.97)',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderTopWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
     zIndex: 30,
   },
-  handleArea: {
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-  },
+  handleArea: { paddingVertical: 10, alignItems: 'center' },
+  sheetHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2 },
   sheetTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingBottom: 12,
   },
   sheetLeft: { gap: 4 },
   catBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start',
   },
-  catBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.9)',
-  },
-  sheetRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  countPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  sheetCount: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
+  catBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
+  sheetRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  countPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  sheetCount: { fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
   sheetClose: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 28, height: 28, borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   expandBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16,
   },
-  expandText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  skeletonWrap: {
-    padding: 16,
-    gap: 10,
-  },
-  scanningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingBottom: 6,
-  },
-  scanningText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  expandText: { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
+  skeletonWrap: { padding: 16, gap: 10 },
+  scanningRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 6 },
+  scanningText: { fontSize: 13, fontWeight: '500' },
   skeleton: {
-    height: 62,
-    borderRadius: 12,
+    height: 62, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
   },
-  horizontalList: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 12,
-  },
-  cardWrapper: {
-    width: CARD_WIDTH,
-    marginRight: 12,
-  },
+  horizontalList: { paddingHorizontal: 16, paddingVertical: 8, gap: 12 },
+  cardWrapper: { width: CARD_WIDTH, marginRight: 12 },
   paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    gap: 8,
+    flexDirection: 'row', justifyContent: 'center',
+    alignItems: 'center', paddingVertical: 12, gap: 8,
   },
-  paginationDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  paginationDotActive: {
-    width: 20,
-    borderRadius: 3,
-  },
-  // Empty state
-  emptyResults: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    gap: 10,
-  },
-  emptyIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  emptyBtn: {
-    marginTop: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  emptyBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
+  paginationDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
+  paginationDotActive: { width: 20, borderRadius: 3 },
+  emptyResults: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 10 },
+  emptyIconWrap: { width: 56, height: 56, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle: { fontSize: 15, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+  emptySubtext: { fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 18 },
+  emptyBtn: { marginTop: 6, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  emptyBtnText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
 });
 
 export default ResultsPanel;

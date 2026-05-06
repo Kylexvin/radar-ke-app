@@ -32,7 +32,6 @@ const MapScreen = ({ navigation }) => {
   const [showRadiusAdjust, setShowRadiusAdjust] = useState(false);
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false);
 
-  // Toast state
   const [toastMsg, setToastMsg] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
 
@@ -43,7 +42,6 @@ const MapScreen = ({ navigation }) => {
   const pinsOpacity = useRef(new Animated.Value(0)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Toast helper
   const showToast = useCallback((msg) => {
     setToastMsg(msg);
     toastAnim.setValue(0);
@@ -86,7 +84,6 @@ const MapScreen = ({ navigation }) => {
     setIsSheetCollapsed(false);
     pinsOpacity.setValue(0);
 
-    // Refresh user screen position before firing sonar so rings sit on the dot
     await mapRef.current?.refreshUserPosition();
     fireSonar();
 
@@ -100,7 +97,6 @@ const MapScreen = ({ navigation }) => {
         Animated.spring(sheetAnim, { toValue: 1, tension: 55, friction: 11, useNativeDriver: true }),
       ]).start();
 
-      // Toast feedback
       if (found.length > 0) {
         showToast(`${found.length} ${cat.label} provider${found.length > 1 ? 's' : ''} found`);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -147,7 +143,6 @@ const MapScreen = ({ navigation }) => {
     mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.025, longitudeDelta: 0.025 }, 500);
   }, [userCoords]);
 
-  // Collapse sheet on outside tap (when results showing)
   const handleMapPress = useCallback(() => {
     if (scanState === 'results' && !isSheetCollapsed) {
       toggleSheetCollapse();
@@ -192,7 +187,6 @@ const MapScreen = ({ navigation }) => {
         headerOpacity={headerOpacity}
       />
 
-      {/* Toast notification */}
       <Animated.View
         style={[
           styles.toast,
@@ -233,6 +227,7 @@ const MapScreen = ({ navigation }) => {
           isSheetCollapsed={isSheetCollapsed}
           onToggleCollapse={toggleSheetCollapse}
           sheetAnim={sheetAnim}
+          navigation={navigation}
         />
       )}
     </View>

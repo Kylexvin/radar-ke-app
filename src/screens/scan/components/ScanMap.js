@@ -82,30 +82,52 @@ const ScanMap = forwardRef(({
 }, ref) => {
   const mapRef = useRef(null);
   const [userScreenPos, setUserScreenPos] = useState(null);
-  const lastScreenPos = useRef(null);
-  // Custom scan origin from long-press
+  const [customScreenPos, setCustomScreenPos] = useState(null);
+  const lastUserScreenPos = useRef(null);
+  const lastCustomScreenPos = useRef(null);
+  
   const [customOrigin, setCustomOrigin] = useState(null);
   const customOriginAnim = useRef(new Animated.Value(0)).current;
 
   const SONAR_SIZE = width * 0.72;
-
-  // The actual scan origin: custom if set, otherwise user location
   const scanOrigin = customOrigin || userCoords;
+  
+  // Select correct screen position based on origin type
+  const sonarPos = customOrigin 
+    ? (customScreenPos || lastCustomScreenPos.current) 
+    : (userScreenPos || lastUserScreenPos.current);
 
+  // Update user location screen position
   const updateUserScreenPosition = useCallback(async () => {
-    if (!mapRef.current || !scanOrigin) return;
+    if (!mapRef.current || !userCoords) return;
     try {
-      const point = await mapRef.current.pointForCoordinate(scanOrigin);
+      const point = await mapRef.current.pointForCoordinate(userCoords);
       if (point) {
         setUserScreenPos({ x: point.x, y: point.y });
-        lastScreenPos.current = { x: point.x, y: point.y };
+        lastUserScreenPos.current = { x: point.x, y: point.y };
       }
     } catch (error) {
       const fallback = { x: width / 2, y: height / 2 };
       setUserScreenPos(fallback);
-      lastScreenPos.current = fallback;
+      lastUserScreenPos.current = fallback;
     }
-  }, [scanOrigin]);
+  }, [userCoords]);
+
+  // Update custom origin screen position
+  const updateCustomScreenPosition = useCallback(async () => {
+    if (!mapRef.current || !customOrigin) return;
+    try {
+      const point = await mapRef.current.pointForCoordinate(customOrigin);
+      if (point) {
+        setCustomScreenPos({ x: point.x, y: point.y });
+        lastCustomScreenPos.current = { x: point.x, y: point.y };
+      }
+    } catch (error) {
+      const fallback = { x: width / 2, y: height / 2 };
+      setCustomScreenPos(fallback);
+      lastCustomScreenPos.current = fallback;
+    }
+  }, [customOrigin]);
 
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration) => mapRef.current?.animateToRegion(region, duration),
@@ -114,13 +136,20 @@ const ScanMap = forwardRef(({
     refreshUserPosition: updateUserScreenPosition,
   }));
 
+  // Update positions when coordinates change
   useEffect(() => {
-    if (scanOrigin && mapRef.current) {
-      const timeout = setTimeout(updateUserScreenPosition, 100);
-      return () => clearTimeout(timeout);
+    if (userCoords && mapRef.current) {
+      updateUserScreenPosition();
     }
-  }, [scanOrigin, updateUserScreenPosition]);
+  }, [userCoords, updateUserScreenPosition]);
 
+  useEffect(() => {
+    if (customOrigin && mapRef.current) {
+      updateCustomScreenPosition();
+    }
+  }, [customOrigin, updateCustomScreenPosition]);
+
+  // Location tracking
   useEffect(() => {
     let subscriber = null;
     (async () => {
@@ -149,7 +178,10 @@ const ScanMap = forwardRef(({
 
   const onMapRegionChangeComplete = useCallback(() => {
     updateUserScreenPosition();
-  }, [updateUserScreenPosition]);
+    if (customOrigin) {
+      updateCustomScreenPosition();
+    }
+  }, [updateUserScreenPosition, updateCustomScreenPosition, customOrigin]);
 
   const handleLongPress = useCallback((e) => {
     if (scanState !== 'idle') return;
@@ -167,11 +199,10 @@ const ScanMap = forwardRef(({
 
   const clearCustomOrigin = useCallback(() => {
     setCustomOrigin(null);
+    setCustomScreenPos(null);
     customOriginAnim.setValue(0);
   }, []);
 
-  // Use last known position as fallback so sonar doesn't flicker when position recalculates
-  const sonarPos = userScreenPos || lastScreenPos.current;
   const circleColor = activeCategory?.color ?? '#22C55E';
 
   return (
@@ -211,7 +242,6 @@ const ScanMap = forwardRef(({
           </>
         )}
 
-        {/* Custom scan origin marker */}
         {customOrigin && (
           <Marker coordinate={customOrigin} anchor={{ x: 0.5, y: 0.5 }} zIndex={90}>
             <View style={styles.customOriginWrap}>
@@ -248,7 +278,6 @@ const ScanMap = forwardRef(({
         ))}
       </MapView>
 
-      {/* Custom origin label + clear button */}
       {customOrigin && scanState === 'idle' && (
         <Animated.View
           style={[
@@ -267,7 +296,6 @@ const ScanMap = forwardRef(({
         </Animated.View>
       )}
 
-      {/* Sonar rings rendered at user/custom origin screen position */}
       {scanState === 'scanning' && sonarPos && (
         <View
           pointerEvents="none"

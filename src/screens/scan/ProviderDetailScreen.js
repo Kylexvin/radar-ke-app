@@ -1,5 +1,5 @@
 // src/screens/scan/ProviderDetailScreen.js
-import React, { useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,687 +9,523 @@ import {
   Linking,
   Alert,
   Dimensions,
-  Image,
+  Animated,
+  StatusBar,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import GlassCard from '../../components/common/GlassCard';
-import GlassButton from '../../components/common/GlassButton';
-import LoadingOverlay from '../../components/common/LoadingOverlay';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import { FontAwesome as Icon } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import theme from '../../utils/theme';
 
 const { width } = Dimensions.get('window');
 
-const ProviderDetailScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { provider } = route.params;
-  
-  const [loading, setLoading] = useState(false);
-  const [showFullDescription, setShowFullDescription] = useState(false);
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#0e0e10' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#3a3a3a' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0e0e10' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1a1a1e' }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#1e1e24' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#242430' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#080c12' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#111116' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0f1410' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#131316' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#1c1c22' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.neighborhood', stylers: [{ visibility: 'off' }] },
+];
 
-  const handleCall = () => {
-    if (provider.phone) {
-      Alert.alert(
-        'Call Provider',
-        `Call ${provider.name} at ${provider.phone}?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Call', onPress: () => Linking.openURL(`tel:${provider.phone}`) }
-        ]
-      );
-    } else {
-      Alert.alert('No Phone Number', 'This provider has not listed a phone number.');
-    }
-  };
+// Static dummy reviews — replace with API data later
+const DUMMY_REVIEWS = [
+  { id: 'r1', name: 'James K.', initial: 'J', rating: 5, text: 'Very professional and fast. Fixed my issue in under an hour. Highly recommend.', date: '2 days ago' },
+  { id: 'r2', name: 'Amina W.', initial: 'A', rating: 4, text: 'Good service, arrived on time. Pricing was fair. Will use again.', date: '5 days ago' },
+  { id: 'r3', name: 'Brian O.', initial: 'B', rating: 5, text: 'Best in the area. Clean work and no hidden charges.', date: '1 week ago' },
+];
 
-  const handleWhatsApp = () => {
-    if (provider.phone) {
-      const phone = provider.phone.replace(/[^0-9]/g, '');
-      Linking.openURL(`whatsapp://send?phone=${phone}`);
-    } else {
-      Alert.alert('No Phone Number', 'Cannot open WhatsApp without a phone number.');
-    }
-  };
-
-  const handleDirections = () => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${provider.coordinates.latitude},${provider.coordinates.longitude}`;
-    Linking.openURL(url);
-  };
-
-  const handleShare = () => {
-    const message = `Check out ${provider.name} on Rada Ke!\n\n${provider.description}\n\nLocated at: ${provider.address}`;
-    Linking.share(message);
-  };
-
-  const getCategoryColor = () => {
-    const colors = {
-      fundi: theme.colors.fundi,
-      food: theme.colors.food,
-      bodaboda: theme.colors.bodaboda,
-      salon: theme.colors.salon,
-      tutor: theme.colors.tutor,
-      delivery: theme.colors.delivery,
-      health: theme.colors.health,
-    };
-    return colors[provider.category] || theme.colors.primary;
-  };
-
-  const getCategoryIcon = () => {
-    const icons = {
-      fundi: 'construct-outline',
-      food: 'restaurant-outline',
-      bodaboda: 'bicycle-outline',
-      salon: 'cut-outline',
-      tutor: 'school-outline',
-      delivery: 'cube-outline',
-      health: 'medkit-outline',
-    };
-    return icons[provider.category] || 'business-outline';
-  };
-
-  const renderStars = (rating) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
-    
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<Icon key={i} name="star" size={16} color={theme.colors.warning} />);
-    }
-    if (hasHalfStar) {
-      stars.push(<Icon key="half" name="star-half" size={16} color={theme.colors.warning} />);
-    }
-    const emptyStars = 5 - stars.length;
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(<Icon key={`empty-${i}`} name="star-outline" size={16} color={theme.colors.warning} />);
-    }
-    return stars;
-  };
-
-  if (loading) {
-    return <LoadingOverlay visible={true} message="Loading provider details..." />;
-  }
-
-  const categoryColor = getCategoryColor();
-  const categoryIcon = getCategoryIcon();
-
+const StarRow = ({ rating, size = 11 }) => {
+  const full = Math.floor(rating);
+  const half = rating % 1 >= 0.5;
   return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header with Back Button */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-            <Icon name="share-outline" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Hero Section */}
-        <View style={styles.heroSection}>
-          <View style={[styles.categoryBadge, { backgroundColor: `${categoryColor}20` }]}>
-            <Icon name={categoryIcon} size={60} color={categoryColor} />
-          </View>
-          <Text style={styles.providerName}>{provider.name}</Text>
-          
-          <View style={styles.ratingRow}>
-            <View style={styles.starsContainer}>{renderStars(provider.rating)}</View>
-            <Text style={styles.ratingText}>{provider.rating}</Text>
-            <Text style={styles.reviewText}>({provider.reviewCount} reviews)</Text>
-          </View>
-
-          <View style={styles.statusRow}>
-            {provider.isOpen ? (
-              <View style={styles.openStatus}>
-                <Icon name="checkmark-circle" size={14} color={theme.colors.success} />
-                <Text style={styles.openText}>Open Now</Text>
-              </View>
-            ) : (
-              <View style={styles.closedStatus}>
-                <Icon name="close-circle" size={14} color={theme.colors.error} />
-                <Text style={styles.closedText}>Closed</Text>
-              </View>
-            )}
-            <View style={styles.priceBadge}>
-              <Text style={styles.priceText}>{provider.priceLevel}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
-            <View style={[styles.actionIcon, { backgroundColor: `${theme.colors.primary}20` }]}>
-              <Icon name="call-outline" size={24} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.actionText}>Call</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton} onPress={handleWhatsApp}>
-            <View style={[styles.actionIcon, { backgroundColor: '#25D36620' }]}>
-              <Icon name="logo-whatsapp" size={24} color="#25D366" />
-            </View>
-            <Text style={styles.actionText}>WhatsApp</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton} onPress={handleDirections}>
-            <View style={[styles.actionIcon, { backgroundColor: `${theme.colors.info}20` }]}>
-              <Icon name="navigate-outline" size={24} color={theme.colors.info} />
-            </View>
-            <Text style={styles.actionText}>Directions</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Description Section */}
-        <GlassCard style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.description}>
-            {showFullDescription 
-              ? provider.description 
-              : `${provider.description.substring(0, 150)}...`}
-          </Text>
-          {provider.description.length > 150 && (
-            <TouchableOpacity onPress={() => setShowFullDescription(!showFullDescription)}>
-              <Text style={styles.readMoreText}>
-                {showFullDescription ? 'Read Less' : 'Read More'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </GlassCard>
-
-        {/* Location Section */}
-        <GlassCard style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Location</Text>
-          <View style={styles.locationInfo}>
-            <Icon name="location-outline" size={20} color={theme.colors.textMuted} />
-            <Text style={styles.locationText}>{provider.address}</Text>
-          </View>
-          <View style={styles.distanceInfo}>
-            <Icon name="navigate-outline" size={20} color={theme.colors.textMuted} />
-            <Text style={styles.distanceText}>{provider.distance} km from your location</Text>
-          </View>
-          
-          <View style={styles.mapContainer}>
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              style={styles.map}
-              initialRegion={{
-                latitude: provider.coordinates.latitude,
-                longitude: provider.coordinates.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              }}
-              scrollEnabled={false}
-              zoomEnabled={false}
-            >
-              <Marker
-                coordinate={provider.coordinates}
-                title={provider.name}
-              >
-                <View style={[styles.mapMarker, { borderColor: categoryColor }]}>
-                  <Icon name={categoryIcon} size={16} color={categoryColor} />
-                </View>
-              </Marker>
-            </MapView>
-            <TouchableOpacity style={styles.viewMapButton} onPress={handleDirections}>
-              <Text style={styles.viewMapText}>View Full Map</Text>
-              <Icon name="arrow-forward" size={16} color={theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </GlassCard>
-
-        {/* Contact Section */}
-        <GlassCard style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Contact Information</Text>
-          
-          <View style={styles.contactItem}>
-            <View style={styles.contactIconContainer}>
-              <Icon name="call-outline" size={20} color={theme.colors.primary} />
-            </View>
-            <View style={styles.contactContent}>
-              <Text style={styles.contactLabel}>Phone Number</Text>
-              <Text style={styles.contactValue}>{provider.phone || 'Not provided'}</Text>
-            </View>
-            {provider.phone && (
-              <TouchableOpacity onPress={handleCall}>
-                <Icon name="chevron-forward" size={20} color={theme.colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.contactItem}>
-            <View style={styles.contactIconContainer}>
-              <Icon name="mail-outline" size={20} color={theme.colors.primary} />
-            </View>
-            <View style={styles.contactContent}>
-              <Text style={styles.contactLabel}>Email</Text>
-              <Text style={styles.contactValue}>{provider.email || 'Not provided'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.contactItem}>
-            <View style={styles.contactIconContainer}>
-              <Icon name="time-outline" size={20} color={theme.colors.primary} />
-            </View>
-            <View style={styles.contactContent}>
-              <Text style={styles.contactLabel}>Business Hours</Text>
-              <Text style={styles.contactValue}>Mon - Sun: 8:00 AM - 8:00 PM</Text>
-            </View>
-          </View>
-        </GlassCard>
-
-        {/* Reviews Section */}
-        <GlassCard style={styles.sectionCard}>
-          <View style={styles.reviewsHeader}>
-            <Text style={styles.sectionTitle}>Customer Reviews</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.reviewSummary}>
-            <Text style={styles.reviewScore}>{provider.rating}</Text>
-            <View style={styles.reviewStars}>
-              <View style={styles.starsContainer}>{renderStars(provider.rating)}</View>
-              <Text style={styles.reviewCountText}>Based on {provider.reviewCount} reviews</Text>
-            </View>
-          </View>
-
-          {/* Sample Review */}
-          <View style={styles.reviewItem}>
-            <View style={styles.reviewerInfo}>
-              <View style={styles.reviewerAvatar}>
-                <Text style={styles.reviewerInitial}>J</Text>
-              </View>
-              <View>
-                <Text style={styles.reviewerName}>John M.</Text>
-                <View style={styles.reviewStars}>{renderStars(5)}</View>
-              </View>
-            </View>
-            <Text style={styles.reviewText}>
-              "Excellent service! Very professional and timely. Would definitely recommend."
-            </Text>
-            <Text style={styles.reviewDate}>2 days ago</Text>
-          </View>
-
-          <View style={styles.reviewItem}>
-            <View style={styles.reviewerInfo}>
-              <View style={styles.reviewerAvatar}>
-                <Text style={styles.reviewerInitial}>S</Text>
-              </View>
-              <View>
-                <Text style={styles.reviewerName}>Sarah W.</Text>
-                <View style={styles.reviewStars}>{renderStars(4)}</View>
-              </View>
-            </View>
-            <Text style={styles.reviewText}>
-              "Good value for money. Fast response and quality work."
-            </Text>
-            <Text style={styles.reviewDate}>1 week ago</Text>
-          </View>
-        </GlassCard>
-
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-      {/* Bottom Action Bar */}
-      <View style={styles.bottomBar}>
-        <GlassButton
-          title="Contact Provider"
-          variant="primary"
-          onPress={handleCall}
-          style={styles.contactButton}
-        />
-        <TouchableOpacity style={styles.favoriteButton}>
-          <Icon name="heart-outline" size={24} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
+    <View style={{ flexDirection: 'row', gap: 2 }}>
+      {Array.from({ length: full }).map((_, i) => (
+        <Icon key={i} name="star" size={size} color="#EAB308" />
+      ))}
+      {half && <Icon name="star-half-o" size={size} color="#EAB308" />}
+      {Array.from({ length: 5 - full - (half ? 1 : 0) }).map((_, i) => (
+        <Icon key={`e${i}`} name="star-o" size={size} color="rgba(234,179,8,0.3)" />
+      ))}
     </View>
   );
 };
 
+const InfoRow = ({ icon, label, value, color }) => (
+  <View style={styles.infoRow}>
+    <View style={[styles.infoIconWrap, { backgroundColor: (color || 'rgba(255,255,255,0.07)') }]}>
+      <Icon name={icon} size={13} color={color ? '#fff' : 'rgba(255,255,255,0.5)'} />
+    </View>
+    <View style={styles.infoTextWrap}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  </View>
+);
+
+export default function ProviderDetailScreen({ route, navigation }) {
+  const { provider } = route.params;
+  const insets = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  const providerColor = provider.color ?? theme.colors.primary;
+  const reviews = DUMMY_REVIEWS;
+  const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 2);
+
+  // Animated header background on scroll
+  const headerBg = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: ['rgba(10,10,10,0)', 'rgba(10,10,10,0.98)'],
+    extrapolate: 'clamp',
+  });
+  const headerBorder = scrollY.interpolate({
+    inputRange: [60, 90],
+    outputRange: ['rgba(255,255,255,0)', 'rgba(255,255,255,0.07)'],
+    extrapolate: 'clamp',
+  });
+
+  const handleCall = useCallback(() => {
+    if (!provider.phone) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      `Call ${provider.name}`,
+      provider.phone,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Call', onPress: () => Linking.openURL(`tel:${provider.phone}`) },
+      ]
+    );
+  }, [provider]);
+
+  const handleWhatsApp = useCallback(() => {
+    if (!provider.phone && !provider.whatsapp) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const num = (provider.whatsapp || provider.phone).replace(/\D/g, '');
+    Linking.openURL(`whatsapp://send?phone=${num}`).catch(() =>
+      Linking.openURL(`https://wa.me/${num}`)
+    );
+  }, [provider]);
+
+  const handleDirections = useCallback(() => {
+    if (!provider.coordinates) return;
+    const { latitude, longitude } = provider.coordinates;
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
+  }, [provider]);
+
+  const hasCoords = provider.coordinates?.latitude && provider.coordinates?.longitude;
+
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* Floating top bar — fades in on scroll */}
+      <Animated.View
+        style={[
+          styles.topBar,
+          {
+            paddingTop: insets.top + 6,
+            backgroundColor: headerBg,
+            borderBottomColor: headerBorder,
+          },
+        ]}
+      >
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Icon name="chevron-left" size={18} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle} numberOfLines={1}>{provider.name}</Text>
+        <View style={{ width: 36 }} />
+      </Animated.View>
+
+      <Animated.ScrollView
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+      >
+
+        {/* ── HERO ─────────────────────────────────────────── */}
+        <View style={[styles.hero, { paddingTop: insets.top + 56 }]}>
+          {/* Avatar */}
+          <View style={[styles.heroAvatar, { backgroundColor: providerColor + '18', borderColor: providerColor + '35' }]}>
+            <Icon name={provider.icon ?? 'user'} size={40} color={providerColor} />
+          </View>
+
+          {/* Name + badges */}
+          <View style={styles.heroMeta}>
+            <View style={styles.heroNameRow}>
+              <Text style={styles.heroName}>{provider.name}</Text>
+              {provider.isVerified && (
+                <View style={styles.verifiedPill}>
+                  <Icon name="check-circle" size={10} color="#22C55E" />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Category pill */}
+            <View style={[styles.catPill, { backgroundColor: providerColor + '18', borderColor: providerColor + '30' }]}>
+              <Icon name={provider.icon ?? 'wrench'} size={10} color={providerColor} />
+              <Text style={[styles.catPillText, { color: providerColor }]}>
+                {provider.category?.charAt(0).toUpperCase() + provider.category?.slice(1)}
+              </Text>
+            </View>
+
+            {/* Rating + distance row */}
+            <View style={styles.heroStats}>
+              <StarRow rating={provider.rating ?? 4.5} size={12} />
+              <Text style={styles.heroRatingVal}>{provider.rating ?? '4.5'}</Text>
+              <View style={styles.heroDot} />
+              <Icon name="map-marker" size={11} color="rgba(255,255,255,0.35)" />
+              <Text style={styles.heroDist}>{provider.distance}</Text>
+              <View style={styles.heroDot} />
+              <View style={[
+                styles.statusPill,
+                provider.isActive
+                  ? { backgroundColor: 'rgba(34,197,94,0.12)' }
+                  : { backgroundColor: 'rgba(255,255,255,0.06)' },
+              ]}>
+                <View style={[styles.statusDot, { backgroundColor: provider.isActive ? '#22C55E' : 'rgba(255,255,255,0.25)' }]} />
+                <Text style={[styles.statusText, { color: provider.isActive ? '#22C55E' : 'rgba(255,255,255,0.35)' }]}>
+                  {provider.isActive ? 'Available' : 'Unavailable'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── QUICK ACTIONS ────────────────────────────────── */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionSecondary, { borderColor: '#25D36640' }]}
+            onPress={handleWhatsApp}
+            activeOpacity={0.8}
+          >
+            <Icon name="whatsapp" size={16} color="#25D366" />
+            <Text style={[styles.actionSecondaryText, { color: '#25D366' }]}>WhatsApp</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionSecondary, { borderColor: 'rgba(255,255,255,0.1)' }]}
+            onPress={handleDirections}
+            activeOpacity={0.8}
+          >
+            <Icon name="location-arrow" size={14} color="rgba(255,255,255,0.55)" />
+            <Text style={styles.actionSecondaryText}>Directions</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── INFO CARDS ───────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Details</Text>
+          <View style={styles.infoCard}>
+            <InfoRow icon="map-marker" label="Location" value={provider.address ?? 'Nairobi, Kenya'} />
+            <View style={styles.infoSep} />
+            <InfoRow icon="arrows-alt" label="Service Reach" value={`${provider.radiusKm ?? 5}km radius`} />
+            <View style={styles.infoSep} />
+            <InfoRow
+              icon="circle"
+              label="Status"
+              value={provider.isActive ? 'Available now' : 'Currently unavailable'}
+              color={provider.isActive ? '#22C55E' : undefined}
+            />
+            {provider.phone && (
+              <>
+                <View style={styles.infoSep} />
+                <InfoRow icon="phone" label="Phone" value={provider.phone} />
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* ── MINI MAP ─────────────────────────────────────── */}
+        {hasCoords && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Location</Text>
+            <View style={styles.mapCard}>
+              <MapView
+                provider={PROVIDER_GOOGLE}
+                style={styles.miniMap}
+                customMapStyle={DARK_MAP_STYLE}
+                initialRegion={{
+                  latitude: provider.coordinates.latitude,
+                  longitude: provider.coordinates.longitude,
+                  latitudeDelta: 0.018,
+                  longitudeDelta: 0.018,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass={false}
+                toolbarEnabled={false}
+              >
+                <Marker
+                  coordinate={provider.coordinates}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                >
+                  <View style={[styles.mapPin, { borderColor: providerColor + '80', backgroundColor: 'rgba(9,9,11,0.92)' }]}>
+                    <Icon name={provider.icon ?? 'map-marker'} size={13} color={providerColor} />
+                  </View>
+                </Marker>
+                <Circle
+                  center={provider.coordinates}
+                  radius={(provider.radiusKm ?? 5) * 1000}
+                  fillColor={providerColor + '0f'}
+                  strokeColor={providerColor + '40'}
+                  strokeWidth={1.5}
+                />
+              </MapView>
+
+              {/* Directions overlay button */}
+              <TouchableOpacity
+                style={[styles.mapDirectionsBtn, { backgroundColor: providerColor + '18', borderColor: providerColor + '35' }]}
+                onPress={handleDirections}
+                activeOpacity={0.85}
+              >
+                <Icon name="location-arrow" size={12} color={providerColor} />
+                <Text style={[styles.mapDirectionsBtnText, { color: providerColor }]}>Open in Maps</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── REVIEWS ──────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>Reviews</Text>
+            <View style={styles.reviewSummaryPill}>
+              <Icon name="star" size={10} color="#EAB308" />
+              <Text style={styles.reviewSummaryText}>
+                {provider.rating ?? '4.5'} · {reviews.length} reviews
+              </Text>
+            </View>
+          </View>
+
+          {displayedReviews.map((review, index) => (
+            <View
+              key={review.id}
+              style={[styles.reviewCard, index < displayedReviews.length - 1 && { marginBottom: 10 }]}
+            >
+              <View style={styles.reviewTop}>
+                <View style={[styles.reviewAvatar, { backgroundColor: providerColor + '20' }]}>
+                  <Text style={[styles.reviewInitial, { color: providerColor }]}>{review.initial}</Text>
+                </View>
+                <View style={styles.reviewMeta}>
+                  <Text style={styles.reviewName}>{review.name}</Text>
+                  <View style={styles.reviewStarRow}>
+                    <StarRow rating={review.rating} size={10} />
+                    <Text style={styles.reviewDate}>{review.date}</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={styles.reviewText}>{review.text}</Text>
+            </View>
+          ))}
+
+          {reviews.length > 2 && (
+            <TouchableOpacity
+              style={[styles.showMoreBtn, { borderColor: providerColor + '30' }]}
+              onPress={() => setShowAllReviews(v => !v)}
+            >
+              <Text style={[styles.showMoreText, { color: providerColor }]}>
+                {showAllReviews ? 'Show less' : `Show all ${reviews.length} reviews`}
+              </Text>
+              <Icon
+                name={showAllReviews ? 'chevron-up' : 'chevron-down'}
+                size={11}
+                color={providerColor}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      </Animated.ScrollView>
+
+      {/* ── STICKY BOTTOM CTA ────────────────────────────── */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <TouchableOpacity
+          style={[styles.callBtn, { backgroundColor: providerColor }]}
+          onPress={handleCall}
+          activeOpacity={0.85}
+        >
+          <Icon name="phone" size={16} color="#fff" />
+          <Text style={styles.callBtnText}>Call Now</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
+  root: { flex: 1, backgroundColor: '#0a0a0a' },
+
+  // Top bar
+  topBar: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    zIndex: 30, flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingBottom: 10, gap: 10,
+    borderBottomWidth: 1,
   },
-  scrollContent: {
-    paddingBottom: 20,
+  backBtn: {
+    width: 36, height: 36, borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl + 10,
-    paddingBottom: theme.spacing.md,
+  topBarTitle: {
+    flex: 1, fontSize: 15, fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)', letterSpacing: 0.1,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
+
+  // Hero
+  hero: {
+    paddingHorizontal: 16, paddingBottom: 20,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
   },
-  shareButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
+  heroAvatar: {
+    width: 72, height: 72, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, flexShrink: 0,
   },
-  heroSection: {
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
+  heroMeta: { flex: 1, gap: 6, paddingTop: 4 },
+  heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  heroName: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  verifiedPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
   },
-  categoryBadge: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
+  verifiedText: { fontSize: 9, color: '#22C55E', fontWeight: '700' },
+  catPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 7, borderWidth: 1,
   },
-  providerName: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
+  catPillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  heroStats: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  heroRatingVal: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.7)' },
+  heroDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.2)' },
+  heroDist: { fontSize: 11, color: 'rgba(255,255,255,0.4)' },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  statusDot: { width: 5, height: 5, borderRadius: 2.5 },
+  statusText: { fontSize: 10, fontWeight: '600' },
+
+  // Actions row
+  actionsRow: {
+    flexDirection: 'row', gap: 10,
+    paddingHorizontal: 16, paddingBottom: 24,
   },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: theme.spacing.sm,
+  actionSecondary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 7,
+    paddingVertical: 11, borderRadius: 12, borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  starsContainer: {
-    flexDirection: 'row',
-    gap: 2,
+  actionSecondaryText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+
+  // Section
+  section: { paddingHorizontal: 16, marginBottom: 24 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 10, letterSpacing: 0.3, textTransform: 'uppercase' },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  reviewSummaryPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(234,179,8,0.1)', borderWidth: 1,
+    borderColor: 'rgba(234,179,8,0.2)', paddingHorizontal: 8,
+    paddingVertical: 4, borderRadius: 8,
   },
-  ratingText: {
-    fontSize: theme.fontSizes.md,
-    fontWeight: 'bold',
-    color: theme.colors.text,
+  reviewSummaryText: { fontSize: 10, color: '#EAB308', fontWeight: '600' },
+
+  // Info card
+  infoCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)', overflow: 'hidden',
   },
-  reviewText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textMuted,
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 12, paddingHorizontal: 14, paddingVertical: 13,
   },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
+  infoIconWrap: {
+    width: 32, height: 32, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
   },
-  openStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: `${theme.colors.success}20`,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  openText: {
-    fontSize: 12,
-    color: theme.colors.success,
-    fontWeight: '600',
-  },
-  closedStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: `${theme.colors.error}20`,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  closedText: {
-    fontSize: 12,
-    color: theme.colors.error,
-    fontWeight: '600',
-  },
-  priceBadge: {
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  priceText: {
-    fontSize: 12,
-    color: theme.colors.textMuted,
-    fontWeight: '600',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-  },
-  actionButton: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.text,
-  },
-  sectionCard: {
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-    padding: theme.spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: theme.fontSizes.lg,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-  },
-  description: {
-    fontSize: theme.fontSizes.md,
-    color: theme.colors.textMuted,
-    lineHeight: 22,
-  },
-  readMoreText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.primary,
-    marginTop: theme.spacing.sm,
-    fontWeight: '500',
-  },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  locationText: {
-    fontSize: theme.fontSizes.md,
-    color: theme.colors.text,
-    flex: 1,
-  },
-  distanceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  distanceText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textMuted,
-  },
-  mapContainer: {
-    marginTop: theme.spacing.sm,
-    borderRadius: theme.glassStyle.borderRadius,
-    overflow: 'hidden',
-  },
-  map: {
-    width: '100%',
+  infoTextWrap: { flex: 1 },
+  infoLabel: { fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: '500', marginBottom: 2 },
+  infoValue: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
+  infoSep: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginLeft: 58 },
+
+  // Mini map
+  mapCard: {
+    borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
     height: 200,
   },
-  mapMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+  miniMap: { ...StyleSheet.absoluteFillObject },
+  mapPin: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: 10, borderWidth: 1,
   },
-  viewMapButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.glassStyle.borderRadius,
-    marginTop: theme.spacing.sm,
+  mapDirectionsBtn: {
+    position: 'absolute', bottom: 12, right: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, borderWidth: 1,
   },
-  viewMapText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  contactIconContainer: {
-    width: 40,
-    marginRight: theme.spacing.md,
-  },
-  contactContent: {
-    flex: 1,
-  },
-  contactLabel: {
-    fontSize: 11,
-    color: theme.colors.textMuted,
-    marginBottom: 2,
-  },
-  contactValue: {
-    fontSize: theme.fontSizes.md,
-    color: theme.colors.text,
-  },
-  reviewsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  viewAllText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.primary,
-    fontWeight: '500',
-  },
-  reviewSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  reviewScore: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: theme.colors.warning,
-  },
-  reviewStars: {
-    gap: 4,
-  },
-  reviewCountText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textMuted,
-  },
-  reviewItem: {
-    marginBottom: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  reviewerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  reviewerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reviewerInitial: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-  },
-  reviewerName: {
-    fontSize: theme.fontSizes.md,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  reviewStars: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  reviewText: {
-    fontSize: theme.fontSizes.md,
-    color: theme.colors.textMuted,
-    lineHeight: 20,
-    marginBottom: theme.spacing.xs,
-  },
-  reviewDate: {
-    fontSize: 11,
-    color: theme.colors.textMuted,
-  },
-  bottomSpacing: {
-    height: 80,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    gap: theme.spacing.md,
-  },
-  contactButton: {
-    flex: 1,
-  },
-  favoriteButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
+  mapDirectionsBtnText: { fontSize: 11, fontWeight: '700' },
 
-export default ProviderDetailScreen;
+  // Reviews
+  reviewCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 14, gap: 10,
+  },
+  reviewTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  reviewAvatar: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  reviewInitial: { fontSize: 14, fontWeight: '800' },
+  reviewMeta: { flex: 1, gap: 3 },
+  reviewName: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
+  reviewStarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reviewDate: { fontSize: 10, color: 'rgba(255,255,255,0.28)' },
+  reviewText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 18 },
+  showMoreBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 10, paddingVertical: 10,
+    borderRadius: 12, borderWidth: 1,
+  },
+  showMoreText: { fontSize: 12, fontWeight: '600' },
+
+  // Bottom CTA
+  bottomBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 12,
+    backgroundColor: 'rgba(10,10,10,0.97)',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)',
+  },
+  callBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 9,
+    paddingVertical: 15, borderRadius: 14,
+  },
+  callBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+});
