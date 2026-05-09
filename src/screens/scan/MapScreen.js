@@ -1,5 +1,5 @@
 // src/screens/scan/MapScreen.js
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,15 +11,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
+import axios from 'axios';
 import ScanHeader from './components/ScanHeader';
 import ScanMap from './components/ScanMap';
 import ResultsPanel from './components/ResultsPanel';
 import CategoryChips from './components/CategoryChips';
-import { CATEGORIES, DUMMY_PROVIDERS } from './constants';
+import { useAuth } from '../../context/AuthContext';
 
 const MapScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
+  const { getAccessToken } = useAuth();
+  const hasFetchedCategories = useRef(false);
 
   const [locationStatus, setLocationStatus] = useState('loading');
   const [userCoords, setUserCoords] = useState(null);
@@ -28,9 +32,11 @@ const MapScreen = ({ navigation }) => {
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [providers, setProviders] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [searchRadius, setSearchRadius] = useState(5);
   const [showRadiusAdjust, setShowRadiusAdjust] = useState(false);
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   const [toastMsg, setToastMsg] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -41,6 +47,79 @@ const MapScreen = ({ navigation }) => {
   const sonarAnim3 = useRef(new Animated.Value(0)).current;
   const pinsOpacity = useRef(new Animated.Value(0)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
+
+  // Get user location on mount
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  // Fetch categories when location is available (only once)
+  useEffect(() => {
+    if (userCoords && !hasFetchedCategories.current) {
+      hasFetchedCategories.current = true;
+      fetchCategoriesPresence();
+    }
+  }, [userCoords]);
+
+  const requestLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationStatus('denied');
+        setToastMsg('Location permission denied');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setUserCoords(coords);
+      setLocationStatus('granted');
+    } catch (error) {
+      console.error('Location error:', error);
+      setLocationStatus('error');
+    }
+  };
+
+  const fetchCategoriesPresence = async () => {
+    try {
+      setLoadingCategories(true);
+      const token = await getAccessToken();
+      const response = await axios.get('/api/scan/categories/presence', {
+        params: {
+          lng: userCoords.longitude,
+          lat: userCoords.latitude,
+          radiusKm: searchRadius,
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.data.success) {
+        const { categories: backendCategories } = response.data.data;
+        
+        const transformedCategories = backendCategories
+          .filter(cat => cat && cat.id)
+          .map(cat => ({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            iconName: cat.iconName,
+            color: cat.color,
+            count: cat.count,
+            hasProviders: cat.hasProviders,
+          }));
+        
+        setCategories(transformedCategories);
+      }
+    } catch (error) {
+      console.error('Fetch categories error:', error);
+      setToastMsg('Failed to load categories');
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   const showToast = useCallback((msg) => {
     setToastMsg(msg);
@@ -75,47 +154,124 @@ const MapScreen = ({ navigation }) => {
     sonarAnim3.stopAnimation();
   };
 
-  const handleScan = useCallback(async (cat) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setActiveCategory(cat);
-    setSelectedProvider(null);
-    setProviders([]);
-    setScanState('scanning');
-    setIsSheetCollapsed(false);
-    pinsOpacity.setValue(0);
+const handleScan = useCallback(async (category) => {
+  // Guard against invalid category
+  if (!category || !category.slug) {
+    console.error('Invalid category in handleScan:', category);
+    showToast('Invalid category selected');
+    return;
+  }
 
-    await mapRef.current?.refreshUserPosition();
-    fireSonar();
+  // Get scan origin (custom location if set, otherwise user location)
+  const hasCustomOrigin = mapRef.current?.hasCustomOrigin?.() || false;
+  let scanOrigin = userCoords;
+
+  if (hasCustomOrigin) {
+    const customOrigin = mapRef.current?.getCustomOrigin?.();
+    if (customOrigin) {
+      scanOrigin = customOrigin;
+      console.log('📍 Using custom origin for scan:', scanOrigin);
+    }
+  } else {
+    console.log('📍 Using user location for scan:', userCoords);
+  }
+
+  if (!scanOrigin) {
+    showToast('Waiting for location...');
+    return;
+  }
+
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  setActiveCategory(category);
+  setSelectedProvider(null);
+  setProviders([]);
+  setScanState('scanning');
+  setIsSheetCollapsed(false);
+  pinsOpacity.setValue(0);
+
+  await mapRef.current?.refreshUserPosition();
+  fireSonar();
+
+  try {
+    const token = await getAccessToken();
+    const response = await axios.get('/api/scan/providers', {
+      params: {
+        lng: scanOrigin.longitude,
+        lat: scanOrigin.latitude,
+        category: category.slug,
+        radiusKm: searchRadius,
+        limit: 50,
+      },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
 
     setTimeout(() => {
       stopSonar();
-      const found = DUMMY_PROVIDERS.filter(p => p.category === cat.id);
-      setProviders(found);
-      setScanState('results');
-      Animated.parallel([
-        Animated.timing(pinsOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
-        Animated.spring(sheetAnim, { toValue: 1, tension: 55, friction: 11, useNativeDriver: true }),
-      ]).start();
+      
+      if (response.data.success) {
+        const apiProviders = response.data.data.providers;
+        
+        const transformedProviders = apiProviders.map(provider => ({
+          id: provider.id,
+          name: provider.name,
+          phone: provider.phone,
+          whatsapp: provider.whatsapp,
+          description: provider.description,
+          locationAddress: provider.locationAddress,
+          address: provider.locationAddress,
+          distance: provider.distance ? `${provider.distance.toFixed(1)}km` : '0km',
+          radiusKm: provider.radiusKm,
+          rating: provider.rating || 4.5,
+          isVerified: provider.isVerified || false,
+          isActive: provider.isActive !== undefined ? provider.isActive : true,
+          category: category.slug,
+          categoryName: category.name,
+          color: category.color,
+          icon: category.iconName,
+          coordinates: {
+            latitude: provider.location.coordinates[1],
+            longitude: provider.location.coordinates[0],
+          },
+        }));
+        
+        setProviders(transformedProviders);
+        setScanState('results');
+        Animated.parallel([
+          Animated.timing(pinsOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+          Animated.spring(sheetAnim, { toValue: 1, tension: 55, friction: 11, useNativeDriver: true }),
+        ]).start();
 
-      if (found.length > 0) {
-        showToast(`${found.length} ${cat.label} provider${found.length > 1 ? 's' : ''} found`);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (transformedProviders.length > 0) {
+          const originText = hasCustomOrigin ? 'near custom location' : 'near you';
+          showToast(`${transformedProviders.length} ${category.name} provider${transformedProviders.length > 1 ? 's' : ''} found ${originText}`);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          showToast(`No ${category.name} providers nearby`);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
       } else {
-        showToast(`No ${cat.label} providers nearby`);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        showToast('Scan failed. Please try again');
+        setScanState('idle');
       }
     }, 2200);
-  }, [fireSonar, showToast]);
-
+  } catch (error) {
+    console.error('Scan error:', error);
+    stopSonar();
+    showToast('Network error. Please try again');
+    setScanState('idle');
+  }
+}, [userCoords, searchRadius, fireSonar, showToast, getAccessToken]);
   const handleSelectProvider = useCallback((provider) => {
     Haptics.selectionAsync();
     setSelectedProvider(prev => prev?.id === provider.id ? null : provider);
-    mapRef.current?.animateToRegion({
-      latitude: provider.coordinates.latitude - 0.005,
-      longitude: provider.coordinates.longitude,
-      latitudeDelta: 0.022,
-      longitudeDelta: 0.022,
-    }, 420);
+    if (provider.coordinates) {
+      mapRef.current?.animateToRegion({
+        latitude: provider.coordinates.latitude - 0.005,
+        longitude: provider.coordinates.longitude,
+        latitudeDelta: 0.022,
+        longitudeDelta: 0.022,
+      }, 420);
+    }
   }, []);
 
   const clearScan = useCallback(() => {
@@ -212,8 +368,15 @@ const MapScreen = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {scanState === 'idle' && (
-        <CategoryChips categories={CATEGORIES} onSelectCategory={handleScan} />
+      {scanState === 'idle' && !loadingCategories && categories.length > 0 && (
+        <CategoryChips 
+          categories={categories} 
+          onSelectCategory={(category) => {
+            if (category && category.slug) {
+              handleScan(category);
+            }
+          }} 
+        />
       )}
 
       {(scanState === 'results' || scanState === 'scanning') && (

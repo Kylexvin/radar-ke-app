@@ -129,11 +129,19 @@ const ScanMap = forwardRef(({
     }
   }, [customOrigin]);
 
+  // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration) => mapRef.current?.animateToRegion(region, duration),
     getMapRef: () => mapRef.current,
     pointForCoordinate: (coords) => mapRef.current?.pointForCoordinate(coords),
     refreshUserPosition: updateUserScreenPosition,
+    getCustomOrigin: () => customOrigin,
+    hasCustomOrigin: () => !!customOrigin,
+    clearCustomOrigin: () => {
+      setCustomOrigin(null);
+      setCustomScreenPos(null);
+      customOriginAnim.setValue(0);
+    },
   }));
 
   // Update positions when coordinates change
@@ -186,16 +194,18 @@ const ScanMap = forwardRef(({
   const handleLongPress = useCallback((e) => {
     if (scanState !== 'idle') return;
     const coords = e.nativeEvent.coordinate;
+    console.log('📍 Long press at:', coords);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setCustomOrigin(coords);
     customOriginAnim.setValue(0);
     Animated.spring(customOriginAnim, { toValue: 1, tension: 60, friction: 9, useNativeDriver: true }).start();
+    setTimeout(() => updateCustomScreenPosition(), 100);
     mapRef.current?.animateToRegion({
       ...coords,
       latitudeDelta: 0.025,
       longitudeDelta: 0.025,
     }, 400);
-  }, [scanState]);
+  }, [scanState, updateCustomScreenPosition]);
 
   const clearCustomOrigin = useCallback(() => {
     setCustomOrigin(null);

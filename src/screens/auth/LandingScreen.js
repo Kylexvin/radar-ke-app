@@ -7,6 +7,7 @@ import {
   Dimensions,
   StatusBar,
   Animated,
+  Image,
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import theme from '../../utils/theme';
@@ -39,6 +40,10 @@ const DARK_MAP_STYLE = [
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#050505' }] },
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d3d3d' }] },
 ];
+
+
+const LOGO_IMAGE = require('../../../assets/logo.jpg');
+
 
 const LandingScreen = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -89,7 +94,11 @@ const LandingScreen = ({ navigation }) => {
         {/* Logo + Brand - centered */}
         <View style={styles.centerLogoContainer}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoIcon}>◎</Text>
+            <Image 
+              source={LOGO_IMAGE}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.brandName}>RADA KE</Text>
           <Text style={styles.tagline}>Scan your environment. Find what's near you.</Text>
@@ -131,7 +140,7 @@ const LandingScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Guest */}
+        {/* Guest - commented out */}
         {/* <TouchableOpacity 
           style={styles.guestBtn} 
           activeOpacity={0.7}
@@ -201,11 +210,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.colors.borderLight,
     ...theme.shadowRed,
+    overflow: 'hidden', // Important: ensures image respects border radius
   },
-  logoIcon: {
-    fontSize: 32,
-    color: theme.colors.text,
-    fontWeight: 'bold',
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
   },
   brandName: {
     ...theme.typography.h1,

@@ -28,7 +28,7 @@ const LoginScreen = ({ navigation }) => {
   const [feedback, setFeedback] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
   
-  const { loginUser, socialLogin, loading } = useAuth();
+  const { login, loading } = useAuth();
   
   // Animation values
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -51,13 +51,12 @@ const LoginScreen = ({ navigation }) => {
       setIsRedirecting(true);
       setFeedback('Logging in...');
 
-      const result = await loginUser(emailOrUsername, password);
+      const result = await login(emailOrUsername, password);
       
       if (result.success) {
         setFeedback('Login successful!');
-        // FIX: Use replace instead of reset
+        // Navigate to main app
         navigation.getParent()?.replace('Main');
-        
       } else {
         throw new Error(result.message);
       }
@@ -65,7 +64,7 @@ const LoginScreen = ({ navigation }) => {
     } catch (err) { 
       setIsRedirecting(false);
       setFeedback('');
-      Alert.alert('Login Failed', err.message || 'Login failed');
+      Alert.alert('Login Failed', err.message || 'Invalid email/username or password');
     }
   };
 
@@ -392,4 +391,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginScreen; 
+export default LoginScreen;

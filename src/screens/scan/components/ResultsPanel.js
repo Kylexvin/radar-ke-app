@@ -69,16 +69,19 @@ const ResultsPanel = ({
     navigation?.navigate('ProviderDetail', { provider });
   };
 
-  const renderHorizontalCard = ({ item }) => (
-    <View style={styles.cardWrapper}>
-      <ProviderCard
-        item={item}
-        selected={selectedProvider?.id === item.id}
-        onPress={onSelectProvider}
-        onNavigate={handleNavigateToProvider}
-      />
-    </View>
-  );
+const renderHorizontalCard = ({ item }) => (
+  <View style={styles.cardWrapper}>
+    <ProviderCard
+      item={item}
+      selected={selectedProvider?.id === item.id}
+      onPress={onSelectProvider}
+      onNavigate={(provider) => {
+        // Navigate to detail screen
+        navigation.navigate('ProviderDetail', { provider });
+      }}
+    />
+  </View>
+);
 
   const renderDot = (_, index) => (
     <TouchableOpacity

@@ -3,6 +3,7 @@ import React, { useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Linking } from 'react-native';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 
+// Updated ProviderCard.js - simplified category handling
 const ProviderCard = ({ item, selected, onPress, onNavigate }) => {
   const pressScale = useRef(new Animated.Value(1)).current;
 
@@ -20,31 +21,24 @@ const ProviderCard = ({ item, selected, onPress, onNavigate }) => {
     }
   };
 
-  const handleCardPress = () => {
-    // Navigate to detail screen if handler provided, otherwise just select on map
-    if (onNavigate) {
-      onNavigate(item);
-    } else {
-      onPress?.(item);
+  const handleCall = () => {
+    if (item.phone) {
+      const phoneNumber = item.phone.replace(/\D/g, '');
+      Linking.openURL(`tel:${phoneNumber}`);
     }
   };
 
-  const getCategoryInfo = () => {
-    const categoryMap = {
-      fundi:    { icon: 'wrench',      color: '#FF4444' },
-      food:     { icon: 'cutlery',     color: '#FF8C00' },
-      bodaboda: { icon: 'motorcycle',  color: '#FFD700' },
-      salon:    { icon: 'scissors',    color: '#FF69B4' },
-      tutor:    { icon: 'book',        color: '#FF5555' },
-      delivery: { icon: 'cube',        color: '#FF2020' },
-      health:   { icon: 'stethoscope', color: '#14B8A6' },
-    };
-    return categoryMap[item.category] || { icon: 'cube', color: '#6B7280' };
-  };
+const handleCardPress = () => {
+  if (onNavigate) {
+    onNavigate(item);  // Navigate to detail screen
+  } else {
+    onPress?.(item);  // Just select on map
+  }
+};
 
-  const categoryInfo = getCategoryInfo();
-  const displayIcon = item.icon || categoryInfo.icon;
-  const displayColor = item.color || categoryInfo.color;
+  // Use passed-in icon and color, with fallbacks
+  const displayIcon = item.icon || 'cube';
+  const displayColor = item.color || '#6B7280';
 
   return (
     <Animated.View style={{ transform: [{ scale: pressScale }] }}>
@@ -69,7 +63,7 @@ const ProviderCard = ({ item, selected, onPress, onNavigate }) => {
 
           <View style={styles.cardRow}>
             <Icon name="map-marker" size={10} color="rgba(255,255,255,0.3)" />
-            <Text style={styles.cardDist}>{item.distance}</Text>
+            <Text style={styles.cardDist}>{item.distance || '0km'}</Text>
 
             <View style={[styles.badge, item.isActive ? styles.badgeOpen : styles.badgeBusy]}>
               <View style={[styles.badgeDot, { backgroundColor: item.isActive ? '#22C55E' : '#EAB308' }]} />
@@ -80,7 +74,7 @@ const ProviderCard = ({ item, selected, onPress, onNavigate }) => {
 
             <View style={styles.ratingRow}>
               <Icon name="star" size={9} color="#EAB308" />
-              <Text style={styles.ratingText}>{item.rating || '4.5'}</Text>
+              <Text style={styles.ratingText}>{item.rating?.toFixed(1) || '4.0'}</Text>
             </View>
           </View>
 
@@ -109,7 +103,6 @@ const ProviderCard = ({ item, selected, onPress, onNavigate }) => {
             </TouchableOpacity>
           )}
 
-          {/* Navigate arrow */}
           <View style={styles.arrowWrap}>
             <Icon name="chevron-right" size={12} color={selected ? displayColor : 'rgba(255,255,255,0.2)'} />
           </View>

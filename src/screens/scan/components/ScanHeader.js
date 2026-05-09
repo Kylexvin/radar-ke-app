@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  Image,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { FontAwesome as Icon } from '@expo/vector-icons';
@@ -31,9 +32,10 @@ const ScanHeader = ({
       {/* Top Row: Logo on left, Radius control on right */}
       <View style={styles.topRow}>
         <View style={styles.logoSection}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>R</Text>
-          </View>
+          <Image 
+            source={require('../../../../assets/icon.png')} 
+            style={styles.logoImage}
+          />
           <Text style={styles.logoName}>RADA KE</Text>
         </View>
 
@@ -131,18 +133,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  logoCircle: {
+  logoImage: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
   },
   logoName: {
     fontSize: 16,

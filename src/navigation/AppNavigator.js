@@ -9,7 +9,7 @@ import ProviderNavigator from './ProviderNavigator';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-  const { isAuthenticated, userType, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, hasProviderProfile } = useAuth();
 
   if (isLoading) {
     return null; // Or return a splash screen
@@ -24,9 +24,12 @@ export default function AppNavigator() {
     >
       {!isAuthenticated ? (
         <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : userType === 'provider' ? (
+      ) : hasProviderProfile ? (
+        // User is also a provider - show both Main + Provider tabs
+        // For now, use ProviderNavigator that should have both
         <Stack.Screen name="Provider" component={ProviderNavigator} />
       ) : (
+        // Regular user only
         <Stack.Screen name="Main" component={MainNavigator} />
       )}
     </Stack.Navigator>
