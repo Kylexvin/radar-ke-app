@@ -17,6 +17,7 @@ import ScanHeader from './components/ScanHeader';
 import ScanMap from './components/ScanMap';
 import ResultsPanel from './components/ResultsPanel';
 import CategoryChips from './components/CategoryChips';
+import CategoryBrowserModal from './components/CategoryBrowserModal';
 import { useAuth } from '../../context/AuthContext';
 
 const MapScreen = ({ navigation }) => {
@@ -34,9 +35,9 @@ const MapScreen = ({ navigation }) => {
   const [providers, setProviders] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchRadius, setSearchRadius] = useState(5);
-  const [showRadiusAdjust, setShowRadiusAdjust] = useState(false);
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [showCategoryBrowser, setShowCategoryBrowser] = useState(false);
 
   const [toastMsg, setToastMsg] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -46,7 +47,6 @@ const MapScreen = ({ navigation }) => {
   const sonarAnim2 = useRef(new Animated.Value(0)).current;
   const sonarAnim3 = useRef(new Animated.Value(0)).current;
   const pinsOpacity = useRef(new Animated.Value(0)).current;
-  const headerOpacity = useRef(new Animated.Value(0)).current;
 
   // Get user location on mount
   useEffect(() => {
@@ -154,113 +154,114 @@ const MapScreen = ({ navigation }) => {
     sonarAnim3.stopAnimation();
   };
 
-const handleScan = useCallback(async (category) => {
-  // Guard against invalid category
-  if (!category || !category.slug) {
-    console.error('Invalid category in handleScan:', category);
-    showToast('Invalid category selected');
-    return;
-  }
-
-  // Get scan origin (custom location if set, otherwise user location)
-  const hasCustomOrigin = mapRef.current?.hasCustomOrigin?.() || false;
-  let scanOrigin = userCoords;
-
-  if (hasCustomOrigin) {
-    const customOrigin = mapRef.current?.getCustomOrigin?.();
-    if (customOrigin) {
-      scanOrigin = customOrigin;
-      console.log('📍 Using custom origin for scan:', scanOrigin);
+  const handleScan = useCallback(async (category) => {
+    // Guard against invalid category
+    if (!category || !category.slug) {
+      console.error('Invalid category in handleScan:', category);
+      showToast('Invalid category selected');
+      return;
     }
-  } else {
-    console.log('📍 Using user location for scan:', userCoords);
-  }
 
-  if (!scanOrigin) {
-    showToast('Waiting for location...');
-    return;
-  }
+    // Get scan origin (custom location if set, otherwise user location)
+    const hasCustomOrigin = mapRef.current?.hasCustomOrigin?.() || false;
+    let scanOrigin = userCoords;
 
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  setActiveCategory(category);
-  setSelectedProvider(null);
-  setProviders([]);
-  setScanState('scanning');
-  setIsSheetCollapsed(false);
-  pinsOpacity.setValue(0);
-
-  await mapRef.current?.refreshUserPosition();
-  fireSonar();
-
-  try {
-    const token = await getAccessToken();
-    const response = await axios.get('/api/scan/providers', {
-      params: {
-        lng: scanOrigin.longitude,
-        lat: scanOrigin.latitude,
-        category: category.slug,
-        radiusKm: searchRadius,
-        limit: 50,
-      },
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    setTimeout(() => {
-      stopSonar();
-      
-      if (response.data.success) {
-        const apiProviders = response.data.data.providers;
-        
-        const transformedProviders = apiProviders.map(provider => ({
-          id: provider.id,
-          name: provider.name,
-          phone: provider.phone,
-          whatsapp: provider.whatsapp,
-          description: provider.description,
-          locationAddress: provider.locationAddress,
-          address: provider.locationAddress,
-          distance: provider.distance ? `${provider.distance.toFixed(1)}km` : '0km',
-          radiusKm: provider.radiusKm,
-          rating: provider.rating || 4.5,
-          isVerified: provider.isVerified || false,
-          isActive: provider.isActive !== undefined ? provider.isActive : true,
-          category: category.slug,
-          categoryName: category.name,
-          color: category.color,
-          icon: category.iconName,
-          coordinates: {
-            latitude: provider.location.coordinates[1],
-            longitude: provider.location.coordinates[0],
-          },
-        }));
-        
-        setProviders(transformedProviders);
-        setScanState('results');
-        Animated.parallel([
-          Animated.timing(pinsOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
-          Animated.spring(sheetAnim, { toValue: 1, tension: 55, friction: 11, useNativeDriver: true }),
-        ]).start();
-
-        if (transformedProviders.length > 0) {
-          const originText = hasCustomOrigin ? 'near custom location' : 'near you';
-          showToast(`${transformedProviders.length} ${category.name} provider${transformedProviders.length > 1 ? 's' : ''} found ${originText}`);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } else {
-          showToast(`No ${category.name} providers nearby`);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        }
-      } else {
-        showToast('Scan failed. Please try again');
-        setScanState('idle');
+    if (hasCustomOrigin) {
+      const customOrigin = mapRef.current?.getCustomOrigin?.();
+      if (customOrigin) {
+        scanOrigin = customOrigin;
+        console.log('📍 Using custom origin for scan:', scanOrigin);
       }
-    }, 2200);
-  } catch (error) {
-    console.error('Scan error:', error);
-    stopSonar();
-    showToast('Network error. Please try again');
-    setScanState('idle');
-  }
-}, [userCoords, searchRadius, fireSonar, showToast, getAccessToken]);
+    } else {
+      console.log('📍 Using user location for scan:', userCoords);
+    }
+
+    if (!scanOrigin) {
+      showToast('Waiting for location...');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setActiveCategory(category);
+    setSelectedProvider(null);
+    setProviders([]);
+    setScanState('scanning');
+    setIsSheetCollapsed(false);
+    pinsOpacity.setValue(0);
+
+    await mapRef.current?.refreshUserPosition();
+    fireSonar();
+
+    try {
+      const token = await getAccessToken();
+      const response = await axios.get('/api/scan/providers', {
+        params: {
+          lng: scanOrigin.longitude,
+          lat: scanOrigin.latitude,
+          category: category.slug,
+          radiusKm: searchRadius,
+          limit: 50,
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      setTimeout(() => {
+        stopSonar();
+        
+        if (response.data.success) {
+          const apiProviders = response.data.data.providers;
+          
+          const transformedProviders = apiProviders.map(provider => ({
+            id: provider.id,
+            name: provider.name,
+            phone: provider.phone,
+            whatsapp: provider.whatsapp,
+            description: provider.description,
+            locationAddress: provider.locationAddress,
+            address: provider.locationAddress,
+            distance: provider.distance ? `${provider.distance.toFixed(1)}km` : '0km',
+            radiusKm: provider.radiusKm,
+            rating: provider.rating || 4.5,
+            isVerified: provider.isVerified || false,
+            isActive: provider.isActive !== undefined ? provider.isActive : true,
+            category: category.slug,
+            categoryName: category.name,
+            color: category.color,
+            icon: category.iconName,
+            coordinates: {
+              latitude: provider.location.coordinates[1],
+              longitude: provider.location.coordinates[0],
+            },
+          }));
+          
+          setProviders(transformedProviders);
+          setScanState('results');
+          Animated.parallel([
+            Animated.timing(pinsOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+            Animated.spring(sheetAnim, { toValue: 1, tension: 55, friction: 11, useNativeDriver: true }),
+          ]).start();
+
+          if (transformedProviders.length > 0) {
+            const originText = hasCustomOrigin ? 'near custom location' : 'near you';
+            showToast(`${transformedProviders.length} ${category.name} provider${transformedProviders.length > 1 ? 's' : ''} found ${originText}`);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else {
+            showToast(`No ${category.name} providers nearby`);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          }
+        } else {
+          showToast('Scan failed. Please try again');
+          setScanState('idle');
+        }
+      }, 2200);
+    } catch (error) {
+      console.error('Scan error:', error);
+      stopSonar();
+      showToast('Network error. Please try again');
+      setScanState('idle');
+    }
+  }, [userCoords, searchRadius, fireSonar, showToast, getAccessToken]);
+
   const handleSelectProvider = useCallback((provider) => {
     Haptics.selectionAsync();
     setSelectedProvider(prev => prev?.id === provider.id ? null : provider);
@@ -335,12 +336,22 @@ const handleScan = useCallback(async (category) => {
         scanState={scanState}
         activeCategory={activeCategory}
         searchRadius={searchRadius}
-        showRadiusAdjust={showRadiusAdjust}
-        onToggleRadius={() => setShowRadiusAdjust(p => !p)}
         onRadiusUp={() => adjustRadius(5)}
         onRadiusDown={() => adjustRadius(-5)}
         onClear={clearScan}
-        headerOpacity={headerOpacity}
+        providers={providers}
+        categories={categories}
+        onOpenCategoryBrowser={() => setShowCategoryBrowser(true)}
+      />
+
+      <CategoryBrowserModal
+        visible={showCategoryBrowser}
+        categories={categories}
+        onClose={() => setShowCategoryBrowser(false)}
+        onSelectCategory={(category) => {
+          handleScan(category);
+        }}
+        userCoords={userCoords}
       />
 
       <Animated.View
