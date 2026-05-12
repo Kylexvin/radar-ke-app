@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
+import * as Linking from 'expo-linking';
 import axios from 'axios';
 import ScanHeader from './components/ScanHeader';
 import ScanMap from './components/ScanMap';
@@ -26,7 +27,10 @@ const MapScreen = ({ navigation }) => {
   const { getAccessToken } = useAuth();
   const hasFetchedCategories = useRef(false);
 
-  const [locationStatus, setLocationStatus] = useState('loading');
+  // Stable ref for userCoords — prevents stale closures in callbacks
+  const userCoordsRef = useRef(null);
+
+  const [locationStatus, setLocationStatus] = useState('loading'); // loading | granted | denied | error | unavailable
   const [userCoords, setUserCoords] = useState(null);
   const [userInteracted, setUserInteracted] = useState(false);
   const [scanState, setScanState] = useState('idle');
@@ -38,15 +42,23 @@ const MapScreen = ({ navigation }) => {
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [showCategoryBrowser, setShowCategoryBrowser] = useState(false);
+  const [showRecenterHint, setShowRecenterHint] = useState(false);
 
   const [toastMsg, setToastMsg] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
+  const hintAnim = useRef(new Animated.Value(0)).current;
 
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const sonarAnim1 = useRef(new Animated.Value(0)).current;
   const sonarAnim2 = useRef(new Animated.Value(0)).current;
   const sonarAnim3 = useRef(new Animated.Value(0)).current;
   const pinsOpacity = useRef(new Animated.Value(0)).current;
+
+  // Stable coord updater — always keeps ref in sync
+  const updateUserCoords = useCallback((coords) => {
+    userCoordsRef.current = coords;
+    setUserCoords(coords);
+  }, []);
 
   // Get user location on mount
   useEffect(() => {
@@ -61,26 +73,55 @@ const MapScreen = ({ navigation }) => {
     }
   }, [userCoords]);
 
+  // Show hint when location is first granted
+  useEffect(() => {
+    if (locationStatus === 'granted' && userCoords) {
+      setShowRecenterHint(true);
+      hintAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(hintAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(2800),
+        Animated.timing(hintAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => setShowRecenterHint(false));
+    }
+  }, [locationStatus]);
+
   const requestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationStatus('loading');
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+
       if (status !== 'granted') {
-        setLocationStatus('denied');
-        setToastMsg('Location permission denied');
+        // canAskAgain = false means user permanently denied → must go to Settings
+        setLocationStatus(canAskAgain ? 'denied' : 'unavailable');
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       const coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
-      setUserCoords(coords);
+      updateUserCoords(coords);
       setLocationStatus('granted');
+
+      // Auto-fly to user on first grant
+      setTimeout(() => {
+        mapRef.current?.animateToRegion(
+          { ...coords, latitudeDelta: 0.025, longitudeDelta: 0.025 },
+          800
+        );
+      }, 400);
     } catch (error) {
       console.error('Location error:', error);
       setLocationStatus('error');
     }
+  };
+
+  const openAppSettings = () => {
+    Linking.openSettings();
   };
 
   const fetchCategoriesPresence = async () => {
@@ -89,8 +130,8 @@ const MapScreen = ({ navigation }) => {
       const token = await getAccessToken();
       const response = await axios.get('/api/scan/categories/presence', {
         params: {
-          lng: userCoords.longitude,
-          lat: userCoords.latitude,
+          lng: userCoordsRef.current.longitude,
+          lat: userCoordsRef.current.latitude,
           radiusKm: searchRadius,
         },
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -98,7 +139,6 @@ const MapScreen = ({ navigation }) => {
 
       if (response.data.success) {
         const { categories: backendCategories } = response.data.data;
-        
         const transformedCategories = backendCategories
           .filter(cat => cat && cat.id)
           .map(cat => ({
@@ -110,12 +150,11 @@ const MapScreen = ({ navigation }) => {
             count: cat.count,
             hasProviders: cat.hasProviders,
           }));
-        
         setCategories(transformedCategories);
       }
     } catch (error) {
       console.error('Fetch categories error:', error);
-      setToastMsg('Failed to load categories');
+      showToast('Failed to load categories');
     } finally {
       setLoadingCategories(false);
     }
@@ -155,25 +194,21 @@ const MapScreen = ({ navigation }) => {
   };
 
   const handleScan = useCallback(async (category) => {
-    // Guard against invalid category
     if (!category || !category.slug) {
       console.error('Invalid category in handleScan:', category);
       showToast('Invalid category selected');
       return;
     }
 
-    // Get scan origin (custom location if set, otherwise user location)
     const hasCustomOrigin = mapRef.current?.hasCustomOrigin?.() || false;
-    let scanOrigin = userCoords;
+    // Use ref to avoid stale closure
+    let scanOrigin = userCoordsRef.current;
 
     if (hasCustomOrigin) {
       const customOrigin = mapRef.current?.getCustomOrigin?.();
       if (customOrigin) {
         scanOrigin = customOrigin;
-        console.log('📍 Using custom origin for scan:', scanOrigin);
       }
-    } else {
-      console.log('📍 Using user location for scan:', userCoords);
     }
 
     if (!scanOrigin) {
@@ -207,10 +242,9 @@ const MapScreen = ({ navigation }) => {
 
       setTimeout(() => {
         stopSonar();
-        
+
         if (response.data.success) {
           const apiProviders = response.data.data.providers;
-          
           const transformedProviders = apiProviders.map(provider => ({
             id: provider.id,
             name: provider.name,
@@ -233,7 +267,7 @@ const MapScreen = ({ navigation }) => {
               longitude: provider.location.coordinates[0],
             },
           }));
-          
+
           setProviders(transformedProviders);
           setScanState('results');
           Animated.parallel([
@@ -260,7 +294,7 @@ const MapScreen = ({ navigation }) => {
       showToast('Network error. Please try again');
       setScanState('idle');
     }
-  }, [userCoords, searchRadius, fireSonar, showToast, getAccessToken]);
+  }, [searchRadius, fireSonar, showToast, getAccessToken]);
 
   const handleSelectProvider = useCallback((provider) => {
     Haptics.selectionAsync();
@@ -294,11 +328,16 @@ const MapScreen = ({ navigation }) => {
 
   const adjustRadius = (delta) => setSearchRadius(prev => Math.min(50, Math.max(1, prev + delta)));
 
+  // Uses ref — no stale coords ever
   const recenter = useCallback(() => {
-    if (!userCoords) return;
+    const coords = userCoordsRef.current;
+    if (!coords) return;
     setUserInteracted(false);
-    mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.025, longitudeDelta: 0.025 }, 500);
-  }, [userCoords]);
+    mapRef.current?.animateToRegion(
+      { ...coords, latitudeDelta: 0.025, longitudeDelta: 0.025 },
+      500
+    );
+  }, []);
 
   const handleMapPress = useCallback(() => {
     if (scanState === 'results' && !isSheetCollapsed) {
@@ -307,6 +346,55 @@ const MapScreen = ({ navigation }) => {
   }, [scanState, isSheetCollapsed, toggleSheetCollapse]);
 
   const toastTranslateY = toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] });
+
+  // Overlay for denied/error/unavailable states
+  const renderLocationOverlay = () => {
+    if (locationStatus === 'granted' || locationStatus === 'loading') return null;
+
+    const isDenied = locationStatus === 'denied';
+    const isUnavailable = locationStatus === 'unavailable';
+    const isError = locationStatus === 'error';
+
+    const icon = isUnavailable ? 'ban' : isError ? 'exclamation-triangle' : 'map-marker';
+    const iconColor = isError ? '#EF4444' : '#EAB308';
+    const title = isUnavailable
+      ? 'Location Access Blocked'
+      : isError
+      ? 'Location Error'
+      : 'Location Permission Needed';
+    const message = isUnavailable
+      ? 'You permanently denied location access. Open Settings to enable it for Rada Ke.'
+      : isError
+      ? 'Could not determine your location. Please try again.'
+      : 'Rada Ke needs your location to find nearby services.';
+    const btnLabel = isUnavailable ? 'Open Settings' : 'Try Again';
+    const btnAction = isUnavailable ? openAppSettings : requestLocationPermission;
+
+    return (
+      <View style={styles.locationOverlay}>
+        <View style={styles.locationCard}>
+          <View style={[styles.locationIconWrap, { borderColor: iconColor + '40' }]}>
+            <Icon name={icon} size={26} color={iconColor} />
+          </View>
+          <Text style={styles.locationTitle}>{title}</Text>
+          <Text style={styles.locationMessage}>{message}</Text>
+          <TouchableOpacity
+            style={[styles.locationBtn, { borderColor: iconColor + '50', backgroundColor: iconColor + '18' }]}
+            onPress={btnAction}
+            activeOpacity={0.75}
+          >
+            <Icon name={isUnavailable ? 'cog' : 'refresh'} size={13} color={iconColor} />
+            <Text style={[styles.locationBtnText, { color: iconColor }]}>{btnLabel}</Text>
+          </TouchableOpacity>
+          {isDenied && (
+            <TouchableOpacity onPress={openAppSettings} style={styles.locationSettingsLink}>
+              <Text style={styles.locationSettingsLinkText}>Or open Settings manually</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -323,7 +411,7 @@ const MapScreen = ({ navigation }) => {
         onMapInteraction={() => setUserInteracted(true)}
         onMapPress={handleMapPress}
         userCoords={userCoords}
-        setUserCoords={setUserCoords}
+        setUserCoords={updateUserCoords}
         locationStatus={locationStatus}
         setLocationStatus={setLocationStatus}
         sonarAnim1={sonarAnim1}
@@ -354,6 +442,7 @@ const MapScreen = ({ navigation }) => {
         userCoords={userCoords}
       />
 
+      {/* Toast */}
       <Animated.View
         style={[
           styles.toast,
@@ -369,24 +458,47 @@ const MapScreen = ({ navigation }) => {
         <Text style={styles.toastText}>{toastMsg}</Text>
       </Animated.View>
 
-      {userInteracted && locationStatus === 'granted' && (
-        <TouchableOpacity
-          style={[styles.recenterBtn, { bottom: scanState === 'results' ? 80 : insets.bottom + 100 }]}
-          onPress={recenter}
-          activeOpacity={0.8}
-        >
-          <Icon name="crosshairs" size={17} color="#22C55E" />
-        </TouchableOpacity>
+      {/* Recenter button — always visible when location is granted */}
+      {locationStatus === 'granted' && (
+        <View style={[styles.recenterGroup, { bottom: scanState === 'results' ? 80 : insets.bottom + 100 }]}>
+          {/* Hint tooltip */}
+          {showRecenterHint && (
+            <Animated.View
+              style={[styles.recenterHint, { opacity: hintAnim }]}
+              pointerEvents="none"
+            >
+              <Text style={styles.recenterHintText}>Tap to go to your location</Text>
+              <View style={styles.recenterHintArrow} />
+            </Animated.View>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.recenterBtn,
+              !userInteracted && styles.recenterBtnActive,
+            ]}
+            onPress={recenter}
+            activeOpacity={0.8}
+          >
+            <Icon
+              name="crosshairs"
+              size={17}
+              color={userInteracted ? 'rgba(34,197,94,0.55)' : '#22C55E'}
+            />
+          </TouchableOpacity>
+        </View>
       )}
 
+      {/* Location permission/error overlay */}
+      {renderLocationOverlay()}
+
       {scanState === 'idle' && !loadingCategories && categories.length > 0 && (
-        <CategoryChips 
-          categories={categories} 
+        <CategoryChips
+          categories={categories}
           onSelectCategory={(category) => {
             if (category && category.slug) {
               handleScan(category);
             }
-          }} 
+          }}
         />
       )}
 
@@ -410,19 +522,61 @@ const MapScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0a0a0a' },
-  recenterBtn: {
+
+  recenterGroup: {
     position: 'absolute',
     right: 14,
+    alignItems: 'flex-end',
+    zIndex: 25,
+  },
+  recenterBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
     backgroundColor: 'rgba(9,9,11,0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: 'rgba(34,197,94,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 25,
   },
+  recenterBtnActive: {
+    borderColor: 'rgba(34,197,94,0.45)',
+    backgroundColor: 'rgba(34,197,94,0.08)',
+  },
+  recenterHint: {
+    position: 'absolute',
+    right: 48,
+    bottom: 6,
+    backgroundColor: 'rgba(9,9,11,0.93)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    zIndex: 26,
+    minWidth: 170,
+  },
+  recenterHintText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  recenterHintArrow: {
+    position: 'absolute',
+    right: -5,
+    top: '50%',
+    marginTop: -4,
+    width: 0,
+    height: 0,
+    borderTopWidth: 4,
+    borderBottomWidth: 4,
+    borderLeftWidth: 5,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'rgba(34,197,94,0.3)',
+  },
+
   toast: {
     position: 'absolute',
     alignSelf: 'center',
@@ -442,6 +596,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255,255,255,0.85)',
     letterSpacing: 0.2,
+  },
+
+  // Location overlay
+  locationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8,8,10,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  },
+  locationCard: {
+    width: '78%',
+    backgroundColor: 'rgba(14,14,18,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    gap: 12,
+  },
+  locationIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  locationTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.92)',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  locationMessage: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.45)',
+    textAlign: 'center',
+    lineHeight: 19,
+    letterSpacing: 0.1,
+  },
+  locationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  locationBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  locationSettingsLink: {
+    marginTop: 2,
+    paddingVertical: 4,
+  },
+  locationSettingsLinkText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.28)',
+    textDecorationLine: 'underline',
   },
 });
 

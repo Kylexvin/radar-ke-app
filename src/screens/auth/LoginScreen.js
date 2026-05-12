@@ -41,32 +41,35 @@ const LoginScreen = ({ navigation }) => {
     ]).start();
   }, []);
 
-  const handleLogin = async () => {
-    if (!emailOrUsername || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+const handleLogin = async () => {
+  if (!emailOrUsername || !password) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
+  }
 
-    try {
-      setIsRedirecting(true);
-      setFeedback('Logging in...');
+  try {
+    setIsRedirecting(true);
+    setFeedback('Logging in...');
 
-      const result = await login(emailOrUsername, password);
+    const result = await login(emailOrUsername, password);
+    
+    if (result.success) {
+      setFeedback('Login successful!');
       
-      if (result.success) {
-        setFeedback('Login successful!');
-        // Navigate to main app
-        navigation.getParent()?.replace('Main');
-      } else {
-        throw new Error(result.message);
-      }
-      
-    } catch (err) { 
-      setIsRedirecting(false);
-      setFeedback('');
-      Alert.alert('Login Failed', err.message || 'Invalid email/username or password');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Auth' }], // This will trigger re-render of AppNavigator
+      });
+    } else {
+      throw new Error(result.message);
     }
-  };
+    
+  } catch (err) { 
+    setIsRedirecting(false);
+    setFeedback('');
+    Alert.alert('Login Failed', err.message || 'Invalid email/username or password');
+  }
+};
 
   const handleGoogleLogin = async () => {
     try {

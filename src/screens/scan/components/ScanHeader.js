@@ -69,13 +69,6 @@ const ScanHeader = ({
     }
   }, [providers.length, scanState]);
 
-  const handleStatusTap = () => {
-    if (scanState === 'results' && providers.length > 0) {
-      // Optional: Show quick stats modal
-      console.log('Show results stats');
-    }
-  };
-
   const handleLongPressRadius = () => {
     // Optional: Show radius presets
     console.log('Show radius presets');
@@ -100,37 +93,19 @@ const ScanHeader = ({
       };
 
       return (
-        <>
+        <View style={styles.statusBadge}>
           <Animated.View style={pulseStyle}>
             <Icon name="circle-o" size={12} color="#22C55E" />
           </Animated.View>
-          <Text style={styles.statusText}>Scanning...</Text>
-        </>
-      );
-    }
-
-    // Active category (selected but not scanning/results)
-    if (activeCategory && scanState !== 'results') {
-      return (
-        <>
-          <Icon name={activeCategory.iconName} size={12} color={activeCategory.color} />
-          <Text style={[styles.statusText, { color: activeCategory.color }]}>
-            {activeCategory.name}
-          </Text>
-          <TouchableOpacity 
-            onPress={onClear} 
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Icon name="times-circle" size={12} color="rgba(255,255,255,0.4)" />
-          </TouchableOpacity>
-        </>
+          <Text style={styles.statusText}>Scanning {activeCategory?.name}...</Text>
+        </View>
       );
     }
 
     // Results state
     if (scanState === 'results' && activeCategory) {
       return (
-        <>
+        <View style={styles.statusBadge}>
           <Icon name={activeCategory.iconName} size={12} color={activeCategory.color} />
           <Text style={[styles.statusText, { color: activeCategory.color }]}>
             {activeCategory.name}
@@ -141,25 +116,21 @@ const ScanHeader = ({
               { transform: [{ scale: resultBounceAnim }] }
             ]}
           >
-            ({providers.length})
+            {providers.length}
           </Animated.Text>
           <TouchableOpacity 
             onPress={onClear} 
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.clearBtn}
           >
-            <Icon name="times-circle" size={12} color="rgba(255,255,255,0.4)" />
+            <Icon name="times" size={12} color="rgba(255,255,255,0.5)" />
           </TouchableOpacity>
-        </>
+        </View>
       );
     }
 
-    // Idle state
-    return (
-      <>
-        <Icon name="hand-pointer-o" size={12} color="rgba(255,255,255,0.4)" />
-        <Text style={styles.statusText}>Tap category to scan</Text>
-      </>
-    );
+    // Idle state - show nothing
+    return null;
   };
 
   const HeaderContent = () => (
@@ -187,18 +158,6 @@ const ScanHeader = ({
         </TouchableOpacity>
       </View>
 
-      {/* Status Row */}
-      <View style={styles.statusRow}>
-        <TouchableOpacity 
-          style={styles.statusChip} 
-          onPress={handleStatusTap}
-          activeOpacity={0.7}
-          disabled={scanState !== 'results'}
-        >
-          {renderStatusContent()}
-        </TouchableOpacity>
-      </View>
-
       {/* Bottom Row: Radius Control (always visible) */}
       <View style={styles.radiusSection}>
         <Text style={styles.radiusLabel}>Scanning radius:</Text>
@@ -222,12 +181,15 @@ const ScanHeader = ({
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Status Badge - only shows when scanning or results */}
+      {renderStatusContent()}
     </View>
   );
 
   return (
     <View 
-      style={[styles.headerWrap, { paddingTop: insets.top + 4 }]} 
+      style={[styles.headerWrap, { paddingTop: insets.top + 2 }]} 
       pointerEvents="box-none"
     >
       {Platform.OS === 'ios' ? (
@@ -306,30 +268,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#22C55E',
   },
-  statusRow: {
-    marginTop: 2,
-  },
-  statusChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  resultCount: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#22C55E',
-    marginLeft: 2,
-  },
   radiusSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,6 +303,39 @@ const styles = StyleSheet.create({
     color: '#22C55E',
     minWidth: 45,
     textAlign: 'center',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginTop: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.8)',
+    flex: 1,
+  },
+  resultCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#22C55E',
+    backgroundColor: 'rgba(34,197,94,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  clearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

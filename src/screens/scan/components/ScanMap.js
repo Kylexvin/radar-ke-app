@@ -85,35 +85,39 @@ const ScanMap = forwardRef(({
   const [customScreenPos, setCustomScreenPos] = useState(null);
   const lastUserScreenPos = useRef(null);
   const lastCustomScreenPos = useRef(null);
-  
+
   const [customOrigin, setCustomOrigin] = useState(null);
   const customOriginAnim = useRef(new Animated.Value(0)).current;
 
+  // Ref to always have latest userCoords without stale closure
+  const userCoordsRef = useRef(userCoords);
+  useEffect(() => {
+    userCoordsRef.current = userCoords;
+  }, [userCoords]);
+
   const SONAR_SIZE = width * 0.72;
   const scanOrigin = customOrigin || userCoords;
-  
-  // Select correct screen position based on origin type
-  const sonarPos = customOrigin 
-    ? (customScreenPos || lastCustomScreenPos.current) 
+
+  const sonarPos = customOrigin
+    ? (customScreenPos || lastCustomScreenPos.current)
     : (userScreenPos || lastUserScreenPos.current);
 
-  // Update user location screen position
   const updateUserScreenPosition = useCallback(async () => {
-    if (!mapRef.current || !userCoords) return;
+    const coords = userCoordsRef.current;
+    if (!mapRef.current || !coords) return;
     try {
-      const point = await mapRef.current.pointForCoordinate(userCoords);
+      const point = await mapRef.current.pointForCoordinate(coords);
       if (point) {
         setUserScreenPos({ x: point.x, y: point.y });
         lastUserScreenPos.current = { x: point.x, y: point.y };
       }
-    } catch (error) {
+    } catch {
       const fallback = { x: width / 2, y: height / 2 };
       setUserScreenPos(fallback);
       lastUserScreenPos.current = fallback;
     }
-  }, [userCoords]);
+  }, []);
 
-  // Update custom origin screen position
   const updateCustomScreenPosition = useCallback(async () => {
     if (!mapRef.current || !customOrigin) return;
     try {
@@ -122,14 +126,13 @@ const ScanMap = forwardRef(({
         setCustomScreenPos({ x: point.x, y: point.y });
         lastCustomScreenPos.current = { x: point.x, y: point.y };
       }
-    } catch (error) {
+    } catch {
       const fallback = { x: width / 2, y: height / 2 };
       setCustomScreenPos(fallback);
       lastCustomScreenPos.current = fallback;
     }
   }, [customOrigin]);
 
-  // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration) => mapRef.current?.animateToRegion(region, duration),
     getMapRef: () => mapRef.current,
@@ -144,7 +147,6 @@ const ScanMap = forwardRef(({
     },
   }));
 
-  // Update positions when coordinates change
   useEffect(() => {
     if (userCoords && mapRef.current) {
       updateUserScreenPosition();
@@ -157,28 +159,62 @@ const ScanMap = forwardRef(({
     }
   }, [customOrigin, updateCustomScreenPosition]);
 
-  // Location tracking
+  // Location tracking — runs once on mount
+  // MapScreen owns the permission request; ScanMap just watches after granted
   useEffect(() => {
     let subscriber = null;
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setLocationStatus('denied');
-        setUserCoords(NAIROBI);
-        return;
+
+    const startWatching = async () => {
+      // Only watch if already granted — don't re-request here
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      try {
+        subscriber = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 15 },
+          (loc) => {
+            const coords = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+            // setUserCoords is stable (useCallback in parent), no stale issue
+            setUserCoords(coords);
+          }
+        );
+      } catch (error) {
+        console.error('watchPositionAsync error:', error);
       }
-      setLocationStatus('granted');
-      const initial = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { latitude: initial.coords.latitude, longitude: initial.coords.longitude };
-      setUserCoords(coords);
-      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.025, longitudeDelta: 0.025 }, 800);
-      subscriber = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 15 },
-        (loc) => setUserCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude })
-      );
-    })();
+    };
+
+    startWatching();
     return () => subscriber?.remove();
-  }, []);
+  }, [setUserCoords]);
+
+  // Re-start watcher when permission transitions to granted
+  useEffect(() => {
+    let subscriber = null;
+
+    if (locationStatus !== 'granted') return;
+
+    const watch = async () => {
+      try {
+        subscriber = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 15 },
+          (loc) => {
+            setUserCoords({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            });
+          }
+        );
+      } catch (error) {
+        console.error('watch error:', error);
+      }
+    };
+
+    watch();
+    return () => subscriber?.remove();
+  }, [locationStatus, setUserCoords]);
 
   const onMapRegionChange = useCallback(() => {
     onMapInteraction?.();
@@ -194,7 +230,6 @@ const ScanMap = forwardRef(({
   const handleLongPress = useCallback((e) => {
     if (scanState !== 'idle') return;
     const coords = e.nativeEvent.coordinate;
-    console.log('📍 Long press at:', coords);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setCustomOrigin(coords);
     customOriginAnim.setValue(0);
@@ -245,9 +280,9 @@ const ScanMap = forwardRef(({
             <Circle
               center={scanOrigin || userCoords}
               radius={searchRadius * 1000}
-              fillColor={circleColor + '08'}
-              strokeColor={circleColor + '28'}
-              strokeWidth={1}
+              fillColor={circleColor + '0D'}
+              strokeColor={circleColor + '55'}
+              strokeWidth={1.5}
             />
           </>
         )}
