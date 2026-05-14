@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import theme from '../../../utils/theme';
+
+const { colors } = theme;
 
 const CategoryChip = ({ item, onPress, index }) => {
   // Guard against null or invalid item
@@ -161,18 +164,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  emptyWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: 'rgba(10,10,12,0.9)',
-    marginHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.2)',
-  },
+emptyWrap: {
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  alignItems: 'center',
+  paddingVertical: 12,
+  backgroundColor: 'rgba(10,10,12,0.9)',
+  marginHorizontal: 20,
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: colors.primaryBorder,
+},
   emptyText: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: 13,

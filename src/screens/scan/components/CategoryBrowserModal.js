@@ -1,5 +1,5 @@
 // src/screens/scan/components/CategoryBrowserModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -11,141 +11,116 @@ import {
   SafeAreaView,
   Platform,
   Animated,
+  StatusBar,
 } from 'react-native';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import theme from '../../../utils/theme';
 
-const CategoryBrowserModal = ({ 
-  visible, 
-  categories, 
-  onClose, 
+const { colors } = theme;
+
+const CategoryBrowserModal = ({
+  visible,
+  categories,
+  onClose,
   onSelectCategory,
   userCoords,
 }) => {
+  const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [recentCategories, setRecentCategories] = useState([]);
-  const fadeAnim = useState(new Animated.Value(0))[0];
+  const slideAnim = useRef(new Animated.Value(60)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-      // Load recent categories from storage
-      loadRecentCategories();
-    } else {
+      slideAnim.setValue(60);
       fadeAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 65, friction: 12, useNativeDriver: true }),
+      ]).start();
+      setRecentCategories(categories.slice(0, 3));
+    } else {
       setSearchQuery('');
     }
   }, [visible]);
 
-  const loadRecentCategories = () => {
-    // You can implement AsyncStorage to load recent categories
-    // For now, just show first 3 as example
-    const recent = categories.slice(0, 3);
-    setRecentCategories(recent);
-  };
-
-  const saveRecentCategory = (category) => {
-    // Save to AsyncStorage for future sessions
-    console.log('Save recent category:', category.name);
+  const saveRecentCategory = category => {
+    console.log('Save recent:', category.name);
   };
 
   const filteredCategories = categories.filter(cat =>
     cat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSelect = item => {
+    saveRecentCategory(item);
+    onSelectCategory(item);
+    onClose();
+  };
+
+  // ─── CATEGORY ROW ──────────────────────────────────────────────────────────
   const renderCategory = ({ item, index }) => (
     <Animated.View
-      style={[
-        styles.categoryItem,
-        {
-          opacity: fadeAnim,
-          transform: [
-            {
-              translateY: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [20, 0],
-              }),
-            },
-          ],
-        },
-      ]}
+      style={{
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }],
+      }}
     >
       <TouchableOpacity
-        style={styles.categoryTouchable}
-        onPress={() => {
-          saveRecentCategory(item);
-          onSelectCategory(item);
-          onClose();
-        }}
+        style={styles.categoryRow}
+        onPress={() => handleSelect(item)}
         activeOpacity={0.7}
       >
-        <View style={[styles.categoryIcon, { backgroundColor: `${item.color}15` }]}>
-          <Icon name={item.iconName} size={24} color={item.color} />
+        {/* Icon box */}
+        <View style={[styles.catIconBox, { backgroundColor: item.color + '14' }]}>
+          <Icon name={item.iconName || 'circle'} size={20} color={item.color} />
         </View>
-        <View style={styles.categoryInfo}>
-          <Text style={styles.categoryName}>{item.name}</Text>
-          <View style={styles.categoryStats}>
-            {item.count !== undefined && (
-              <Text style={styles.categoryCount}>
-                {item.count} provider{item.count !== 1 ? 's' : ''} nearby
-              </Text>
-            )}
-            {item.distance && (
-              <Text style={styles.categoryDistance}>{item.distance}</Text>
+
+        {/* Info */}
+        <View style={styles.catInfo}>
+          <Text style={styles.catName}>{item.name}</Text>
+          <View style={styles.catMeta}>
+            {item.count > 0 ? (
+              <>
+                <View style={[styles.countDot, { backgroundColor: item.color }]} />
+                <Text style={[styles.catCount, { color: item.color }]}>
+                  {item.count} nearby
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.catNone}>None nearby</Text>
             )}
           </View>
         </View>
-        <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.3)" />
+
+        {/* Right side */}
+        <View style={styles.catRight}>
+          {item.hasProviders && (
+            <View style={[styles.activePill, { borderColor: item.color + '40', backgroundColor: item.color + '12' }]}>
+              <Text style={[styles.activePillText, { color: item.color }]}>Active</Text>
+            </View>
+          )}
+          <Icon name="chevron-right" size={12} color={colors.textFaint} />
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
 
-  const renderRecentSection = () => {
-    if (recentCategories.length === 0) return null;
+  // ─── SECTION HEADER ────────────────────────────────────────────────────────
+  const SectionLabel = ({ label, count }) => (
+    <View style={styles.sectionLabel}>
+      <Text style={styles.sectionLabelText}>{label}</Text>
+      {count !== undefined && (
+        <Text style={styles.sectionLabelCount}>{count}</Text>
+      )}
+    </View>
+  );
 
-    return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recently Used</Text>
-        <FlatList
-          data={recentCategories}
-          renderItem={renderCategory}
-          keyExtractor={item => `recent-${item.id}`}
-          scrollEnabled={false}
-        />
-      </View>
-    );
-  };
-
-  const renderAllSection = () => {
-    if (filteredCategories.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <Icon name="search" size={48} color="rgba(255,255,255,0.2)" />
-          <Text style={styles.emptyStateText}>No categories found</Text>
-          <Text style={styles.emptyStateSubtext}>Try a different search term</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          All Categories {filteredCategories.length !== categories.length && `(${filteredCategories.length})`}
-        </Text>
-        <FlatList
-          data={filteredCategories}
-          renderItem={renderCategory}
-          keyExtractor={item => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
-      </View>
-    );
-  };
+  const showSearch = searchQuery.length > 0;
+  const displayList = showSearch ? filteredCategories : categories;
 
   return (
     <Modal
@@ -154,30 +129,39 @@ const CategoryBrowserModal = ({
       onRequestClose={onClose}
       transparent={false}
     >
-      <SafeAreaView style={styles.modalContainer}>
-        <BlurView
-          intensity={Platform.OS === 'ios' ? 80 : 100}
-          tint="dark"
-          style={StyleSheet.absoluteFill}
-        />
-        
-        {/* Header */}
-        <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Icon name="arrow-left" size={24} color="white" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <SafeAreaView style={styles.root}>
+
+        {/* Background blur on iOS */}
+        {Platform.OS === 'ios' && (
+          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+        )}
+
+        {/* ── HEADER */}
+        <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 8 : 8 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={onClose} activeOpacity={0.7}>
+            <Icon name="arrow-left" size={16} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Browse Categories</Text>
-          <View style={{ width: 40 }} />
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Categories</Text>
+            <View style={styles.headerPill}>
+              <Text style={styles.headerPillText}>{categories.length} total</Text>
+            </View>
+          </View>
+
+          {/* Spacer to balance back button */}
+          <View style={{ width: 36 }} />
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
+        {/* ── SEARCH */}
+        <View style={styles.searchWrap}>
           <View style={styles.searchBar}>
-            <Icon name="search" size={18} color="rgba(255,255,255,0.4)" />
+            <Icon name="search" size={13} color={colors.textDim} style={{ marginRight: 9 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search categories..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={colors.textFaint}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -185,27 +169,44 @@ const CategoryBrowserModal = ({
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Icon name="times-circle" size={16} color="rgba(255,255,255,0.4)" />
+                <Icon name="times-circle" size={14} color={colors.textDim} />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* Categories List */}
+        {/* ── RESULTS COUNT */}
+        <View style={styles.resultsRow}>
+          <Text style={styles.resultsText}>
+            {showSearch
+              ? `${filteredCategories.length} result${filteredCategories.length !== 1 ? 's' : ''}`
+              : `${categories.filter(c => c.hasProviders).length} active near you`}
+          </Text>
+          <View style={styles.sortBtn}>
+            <Icon name="sort" size={11} color={colors.primaryLight} />
+            <Text style={styles.sortText}>Active first</Text>
+          </View>
+        </View>
+
+        {/* ── LIST */}
         <FlatList
-          data={searchQuery.length > 0 ? filteredCategories : []}
+          data={displayList}
+          keyExtractor={item => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          renderItem={renderCategory}
           ListHeaderComponent={
-            searchQuery.length === 0 ? (
-              <>
-                {renderRecentSection()}
-                {renderAllSection()}
-              </>
+            !showSearch && recentCategories.length > 0 ? (
+              <SectionLabel label="Recently Used" />
             ) : null
           }
-          renderItem={renderCategory}
-          keyExtractor={(item, index) => `${searchQuery}-${item.id}-${index}`}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Icon name="search" size={36} color={colors.textFaint} />
+              <Text style={styles.emptyTitle}>No categories found</Text>
+              <Text style={styles.emptySub}>Try a different search term</Text>
+            </View>
+          }
         />
       </SafeAreaView>
     </Modal>
@@ -213,132 +214,203 @@ const CategoryBrowserModal = ({
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  root: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
+    backgroundColor: colors.background,
   },
-  modalHeader: {
+
+  // ── Header
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 8 : 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'white',
-    letterSpacing: 0.3,
-  },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 16,
+    paddingBottom: 10,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: 'white',
-    padding: 0,
-  },
-  listContainer: {
-    paddingBottom: 40,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.5)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-    paddingHorizontal: 20,
-  },
-  categoryItem: {
-    marginBottom: 8,
-  },
-  categoryTouchable: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  categoryIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryInfo: {
-    flex: 1,
-  },
-  categoryName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: 4,
-  },
-  categoryStats: {
+  headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  categoryCount: {
-    fontSize: 12,
-    color: '#22C55E',
-    fontWeight: '500',
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: -0.2,
   },
-  categoryDistance: {
+  headerPill: {
+    backgroundColor: colors.primarySurface,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  headerPillText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '600',
+    color: colors.primaryLight,
   },
-  emptyState: {
+
+  // ── Search
+  searchWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 11,
+    height: 42,
+    paddingHorizontal: 13,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+  },
+
+  // ── Results row
+  resultsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  resultsText: {
+    fontSize: 11,
+    color: colors.textFaint,
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  sortText: {
+    fontSize: 11,
+    color: colors.primaryLight,
+  },
+
+  // ── Section label
+  sectionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    paddingTop: 4,
+  },
+  sectionLabelText: {
+    fontSize: 11,
+    color: colors.textFaint,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sectionLabelCount: {
+    fontSize: 11,
+    color: colors.textFaint,
+  },
+
+  // ── List
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+    gap: 8,
+  },
+
+  // ── Category row (matches shop card style)
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 13,
+    padding: 12,
+  },
+  catIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 12,
+    flexShrink: 0,
   },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.5)',
+  catInfo: {
+    flex: 1,
+    minWidth: 0,
   },
-  emptyStateSubtext: {
+  catName: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 3,
+  },
+  catMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  countDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  catCount: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  catNone: {
+    fontSize: 11,
+    color: colors.textFaint,
+  },
+  catRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activePill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  activePillText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
+  // ── Empty
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 10,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textDim,
+    marginTop: 4,
+  },
+  emptySub: {
+    fontSize: 12,
+    color: colors.textFaint,
   },
 });
 

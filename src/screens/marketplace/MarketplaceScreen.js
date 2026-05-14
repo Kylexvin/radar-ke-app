@@ -14,6 +14,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import theme from '../../utils/theme';
+
+const { colors } = theme;
 
 const DUMMY_SHOPS = [
   {
@@ -131,21 +134,21 @@ const DUMMY_SHOPS = [
 ];
 
 const CATEGORIES = [
-  { id: 'all',         name: 'All',         color: '#22C55E' },
-  { id: 'grocery',    name: 'Grocery',     color: '#22C55E' },
-  { id: 'pharmacy',   name: 'Pharmacy',    color: '#14B8A6' },
-  { id: 'electronics',name: 'Electronics', color: '#3B82F6' },
-  { id: 'clothing',   name: 'Clothing',    color: '#A855F7' },
-  { id: 'hardware',   name: 'Hardware',    color: '#FF8C00' },
-  { id: 'food',       name: 'Food',        color: '#F97316' },
+  { id: 'all',          name: 'All',         color: '#FF4444' },
+  { id: 'grocery',     name: 'Grocery',     color: '#22C55E' },
+  { id: 'pharmacy',    name: 'Pharmacy',    color: '#14B8A6' },
+  { id: 'electronics', name: 'Electronics', color: '#3B82F6' },
+  { id: 'clothing',    name: 'Clothing',    color: '#A855F7' },
+  { id: 'hardware',    name: 'Hardware',    color: '#FF8C00' },
+  { id: 'food',        name: 'Food',        color: '#F97316' },
 ];
 
 const MarketplaceScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [refreshing, setRefreshing]       = useState(false);
-  const [searchQuery, setSearchQuery]     = useState('');
+  const [refreshing, setRefreshing]         = useState(false);
+  const [searchQuery, setSearchQuery]       = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
-  const [cartCount]                       = useState(3);
+  const [cartCount]                         = useState(3);
 
   const filteredShops = useCallback(() => {
     let list = DUMMY_SHOPS;
@@ -176,7 +179,7 @@ const MarketplaceScreen = ({ navigation }) => {
 
   // ─── HEADER ──────────────────────────────────────────────────────────────────
   const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+    <View style={[styles.header, { paddingTop: insets.top + -20 }]}>
       <View>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Marketplace</Text>
@@ -185,7 +188,7 @@ const MarketplaceScreen = ({ navigation }) => {
           </View>
         </View>
         <View style={styles.locRow}>
-          <Icon name="map-marker" size={10} color="#22C55E" />
+          <Icon name="map-marker" size={10} color={colors.primary} />
           <Text style={styles.locText}>Nairobi, KE</Text>
         </View>
       </View>
@@ -193,7 +196,7 @@ const MarketplaceScreen = ({ navigation }) => {
         style={styles.cartBtn}
         onPress={() => navigation.navigate('Cart')}
       >
-        <Icon name="shopping-cart" size={19} color="#22C55E" />
+        <Icon name="shopping-cart" size={19} color={colors.primaryLight} />
         {cartCount > 0 && (
           <View style={styles.cartBadge}>
             <Text style={styles.cartCount}>{cartCount}</Text>
@@ -203,35 +206,25 @@ const MarketplaceScreen = ({ navigation }) => {
     </View>
   );
 
-  // ─── CATEGORY CHIPS ───────────────────────────────────────────────────────────
+  // ─── CATEGORY CHIPS ──────────────────────────────────────────────────────────
   const renderChips = () => (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.chipsScroll}
       contentContainerStyle={styles.chipsContainer}
     >
       {CATEGORIES.map(cat => (
         <TouchableOpacity
           key={cat.id}
-          style={[
-            styles.chip,
-            activeCategory === cat.id && {
-              backgroundColor: cat.color + '14',
-              borderColor: cat.color + '50',
-            },
-          ]}
+          style={[styles.chip, activeCategory === cat.id && styles.chipActive]}
           onPress={() => {
             Haptics.selectionAsync();
             setActiveCategory(cat.id);
           }}
         >
           <View style={[styles.chipDot, { backgroundColor: cat.color }]} />
-          <Text
-            style={[
-              styles.chipText,
-              activeCategory === cat.id && { color: cat.color, fontWeight: '600' },
-            ]}
-          >
+          <Text style={[styles.chipText, activeCategory === cat.id && styles.chipTextActive]}>
             {cat.name}
           </Text>
         </TouchableOpacity>
@@ -239,39 +232,39 @@ const MarketplaceScreen = ({ navigation }) => {
     </ScrollView>
   );
 
-  // ─── SEARCH ───────────────────────────────────────────────────────────────────
+  // ─── SEARCH ──────────────────────────────────────────────────────────────────
   const renderSearch = () => (
     <View style={styles.searchBar}>
-      <Icon name="search" size={14} color="#444" style={{ marginRight: 9 }} />
+      <Icon name="search" size={14} color={colors.textDim} style={{ marginRight: 9 }} />
       <TextInput
         style={styles.searchInput}
         placeholder="Search shops or products..."
-        placeholderTextColor="#383838"
+        placeholderTextColor={colors.textFaint}
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
       {searchQuery !== '' && (
         <TouchableOpacity onPress={() => setSearchQuery('')}>
-          <Icon name="times-circle" size={14} color="#444" />
+          <Icon name="times-circle" size={14} color={colors.textDim} />
         </TouchableOpacity>
       )}
     </View>
   );
 
-  // ─── RESULTS ROW ──────────────────────────────────────────────────────────────
+  // ─── RESULTS ROW ─────────────────────────────────────────────────────────────
   const renderResultsRow = () => (
     <View style={styles.resultsRow}>
       <Text style={styles.resultsCount}>
         {filteredShops().length} shops near you
       </Text>
       <TouchableOpacity style={styles.sortBtn}>
-        <Icon name="sort" size={12} color="#22C55E" />
+        <Icon name="sort" size={12} color={colors.primaryLight} />
         <Text style={styles.sortText}>Nearest</Text>
       </TouchableOpacity>
     </View>
   );
 
-  // ─── SHOP CARD ────────────────────────────────────────────────────────────────
+  // ─── SHOP CARD ───────────────────────────────────────────────────────────────
   const renderShopCard = ({ item: shop }) => (
     <TouchableOpacity
       style={[styles.card, !shop.isOpen && styles.cardClosed]}
@@ -291,28 +284,18 @@ const MarketplaceScreen = ({ navigation }) => {
             <Text style={styles.sep}>•</Text>
             <Text style={styles.distText}>{shop.distance} km</Text>
             <Text style={styles.sep}>•</Text>
-            <View
-              style={[
-                styles.statusPill,
-                shop.isOpen ? styles.statusOpen : styles.statusClosed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusText,
-                  { color: shop.isOpen ? '#22C55E' : '#EF4444' },
-                ]}
-              >
+            <View style={[styles.statusPill, shop.isOpen ? styles.statusOpen : styles.statusClosed]}>
+              <Text style={[styles.statusText, { color: shop.isOpen ? '#22C55E' : colors.primary }]}>
                 {shop.isOpen ? 'Open' : 'Closed'}
               </Text>
             </View>
           </View>
           <View style={styles.addrRow}>
-            <Icon name="map-marker" size={10} color="#2e2e2e" />
+            <Icon name="map-marker" size={10} color={colors.textFaint} />
             <Text style={styles.addrText} numberOfLines={1}>{shop.address}</Text>
           </View>
         </View>
-        <Icon name="chevron-right" size={14} color="#2a2a2a" />
+        <Icon name="chevron-right" size={14} color={colors.textFaint} />
       </View>
 
       {/* Product tags */}
@@ -331,7 +314,7 @@ const MarketplaceScreen = ({ navigation }) => {
       {/* Footer */}
       <View style={styles.cardFooter}>
         <View style={styles.deliveryRow}>
-          <Icon name="motorcycle" size={13} color="#22C55E" />
+          <Icon name="motorcycle" size={13} color={colors.primary} />
           <Text style={styles.feeText}>
             {shop.deliveryFee === 0 ? 'Free delivery' : `KES ${shop.deliveryFee}`}
           </Text>
@@ -352,10 +335,10 @@ const MarketplaceScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  // ─── EMPTY STATE ──────────────────────────────────────────────────────────────
+  // ─── EMPTY STATE ─────────────────────────────────────────────────────────────
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Icon name="store" size={44} color="#222" />
+      <Icon name="store" size={44} color={colors.textFaint} />
       <Text style={styles.emptyTitle}>No shops found</Text>
       <Text style={styles.emptySub}>Try adjusting your filters or search</Text>
     </View>
@@ -365,13 +348,11 @@ const MarketplaceScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
-
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       {renderHeader()}
       {renderChips()}
       {renderSearch()}
       {renderResultsRow()}
-
       <FlatList
         data={shops}
         renderItem={renderShopCard}
@@ -382,7 +363,7 @@ const MarketplaceScreen = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#22C55E"
+            tintColor={colors.primary}
           />
         }
         ListEmptyComponent={renderEmpty}
@@ -394,7 +375,7 @@ const MarketplaceScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: colors.background,
   },
 
   // ── Header
@@ -413,13 +394,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.text,
     letterSpacing: -0.3,
   },
   nearbyPill: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: colors.primarySurface,
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.3)',
+    borderColor: colors.primaryBorder,
     borderRadius: 20,
     paddingHorizontal: 9,
     paddingVertical: 2,
@@ -427,7 +408,7 @@ const styles = StyleSheet.create({
   nearbyText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#22C55E',
+    color: colors.primaryLight,
   },
   locRow: {
     flexDirection: 'row',
@@ -437,15 +418,15 @@ const styles = StyleSheet.create({
   },
   locText: {
     fontSize: 11,
-    color: '#444',
+    color: colors.textDim,
   },
   cartBtn: {
     width: 38,
     height: 38,
     borderRadius: 11,
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -454,7 +435,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -3,
     right: -3,
-    backgroundColor: '#22C55E',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     minWidth: 15,
     height: 15,
@@ -465,27 +446,36 @@ const styles = StyleSheet.create({
   cartCount: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#000',
+    color: colors.text,
   },
 
   // ── Chips
+  chipsScroll: {
+    height: 46,
+    marginBottom: 6,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   chipsContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 4,
-    gap: 7,
-    paddingBottom: 10,
+    alignItems: 'center',
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    height: 32,
     borderRadius: 20,
-    backgroundColor: '#161616',
-    borderWidth: 1,
-    borderColor: '#222',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     marginRight: 7,
+  },
+  chipActive: {
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primaryBorder,
   },
   chipDot: {
     width: 6,
@@ -495,16 +485,20 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#555',
+    color: colors.textDim,
+  },
+  chipTextActive: {
+    fontWeight: '600',
+    color: colors.primaryLight,
   },
 
   // ── Search
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#141414',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     borderRadius: 11,
     marginHorizontal: 16,
     marginBottom: 10,
@@ -514,7 +508,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: '#fff',
+    color: colors.text,
   },
 
   // ── Results row
@@ -527,7 +521,7 @@ const styles = StyleSheet.create({
   },
   resultsCount: {
     fontSize: 11,
-    color: '#3a3a3a',
+    color: colors.textFaint,
   },
   sortBtn: {
     flexDirection: 'row',
@@ -536,7 +530,7 @@ const styles = StyleSheet.create({
   },
   sortText: {
     fontSize: 11,
-    color: '#22C55E',
+    color: colors.primaryLight,
   },
 
   // ── List
@@ -548,14 +542,14 @@ const styles = StyleSheet.create({
 
   // ── Card
   card: {
-    backgroundColor: '#111',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#1d1d1d',
+    borderColor: colors.border,
     borderRadius: 13,
     overflow: 'hidden',
   },
   cardClosed: {
-    opacity: 0.65,
+    opacity: 0.55,
   },
   cardTop: {
     flexDirection: 'row',
@@ -582,7 +576,7 @@ const styles = StyleSheet.create({
   shopName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 3,
   },
   shopSub: {
@@ -595,12 +589,12 @@ const styles = StyleSheet.create({
     color: '#FBBF24',
   },
   sep: {
-    color: '#2a2a2a',
+    color: colors.border,
     fontSize: 11,
   },
   distText: {
     fontSize: 11,
-    color: '#444',
+    color: colors.textDim,
   },
   statusPill: {
     paddingHorizontal: 7,
@@ -608,10 +602,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusOpen: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: 'rgba(34,197,94,0.1)',
   },
   statusClosed: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
+    backgroundColor: colors.primarySurface,
   },
   statusText: {
     fontSize: 10,
@@ -625,7 +619,7 @@ const styles = StyleSheet.create({
   },
   addrText: {
     fontSize: 10,
-    color: '#2e2e2e',
+    color: colors.textFaint,
   },
 
   // ── Tags
@@ -635,9 +629,9 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   tag: {
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#1d1d1d',
+    borderColor: colors.border,
     borderRadius: 7,
     paddingHorizontal: 9,
     paddingVertical: 4,
@@ -645,13 +639,13 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 10,
-    color: '#555',
+    color: colors.textDim,
   },
 
   // ── Card footer
   cardFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#161616',
+    borderTopColor: colors.border,
     paddingHorizontal: 13,
     paddingVertical: 9,
     flexDirection: 'row',
@@ -665,16 +659,16 @@ const styles = StyleSheet.create({
   },
   feeText: {
     fontSize: 11,
-    color: '#22C55E',
+    color: colors.primary,
   },
   minText: {
     fontSize: 11,
-    color: '#444',
+    color: colors.textDim,
   },
   viewBtn: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
+    backgroundColor: colors.primarySurface,
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
+    borderColor: colors.primaryBorder,
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 5,
@@ -682,7 +676,7 @@ const styles = StyleSheet.create({
   viewBtnText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#22C55E',
+    color: colors.primaryLight,
   },
 
   // ── Empty
@@ -693,12 +687,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDim,
     marginTop: 12,
   },
   emptySub: {
     fontSize: 13,
-    color: '#272727',
+    color: colors.textFaint,
     marginTop: 4,
   },
 });

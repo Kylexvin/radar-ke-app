@@ -13,6 +13,9 @@ import {
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProviderCard from './ProviderCard';
+import theme from '../../../utils/theme';
+
+const { colors } = theme;
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
@@ -37,7 +40,7 @@ const ResultsPanel = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollAnim = useRef(new Animated.Value(0)).current;
 
-  const catColor = activeCategory?.color ?? '#22C55E';
+const catColor = activeCategory?.color ?? colors.primary;
 
   const sheetTranslateY = sheetAnim.interpolate({
     inputRange: [0, 0.3, 1],
@@ -114,11 +117,11 @@ const renderHorizontalCard = ({ item }) => (
         <View style={styles.sheetLeft}>
           {activeCategory && (
             <View style={[styles.catBadge, { backgroundColor: catColor + '1a' }]}>
-              <Icon name={activeCategory.icon} size={10} color={catColor} />
-              <Text style={[styles.catBadgeText, { color: catColor }]}>
-                {activeCategory.label}
-              </Text>
-            </View>
+  <Icon name={activeCategory.iconName} size={10} color={catColor} />
+  <Text style={[styles.catBadgeText, { color: catColor }]}>
+    {activeCategory.name}
+  </Text>
+</View>
           )}
           <Text style={styles.sheetTitle}>
             {scanState === 'scanning' ? 'Scanning area...' : 'Best Matches'}

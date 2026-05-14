@@ -5,13 +5,15 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Platform,
-  Image,
+  Platform,Image,
   Animated,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import theme from '../../../utils/theme';
+
+const { colors } = theme;
 
 const ScanHeader = ({
   scanState,
@@ -70,7 +72,6 @@ const ScanHeader = ({
   }, [providers.length, scanState]);
 
   const handleLongPressRadius = () => {
-    // Optional: Show radius presets
     console.log('Show radius presets');
   };
 
@@ -95,7 +96,7 @@ const ScanHeader = ({
       return (
         <View style={styles.statusBadge}>
           <Animated.View style={pulseStyle}>
-            <Icon name="circle-o" size={12} color="#22C55E" />
+            <Icon name="circle-o" size={12} color={colors.primary} />
           </Animated.View>
           <Text style={styles.statusText}>Scanning {activeCategory?.name}...</Text>
         </View>
@@ -110,26 +111,26 @@ const ScanHeader = ({
           <Text style={[styles.statusText, { color: activeCategory.color }]}>
             {activeCategory.name}
           </Text>
-          <Animated.Text 
+          <Animated.Text
             style={[
-              styles.resultCount, 
-              { transform: [{ scale: resultBounceAnim }] }
+              styles.resultCount,
+              { transform: [{ scale: resultBounceAnim }] },
             ]}
           >
             {providers.length}
           </Animated.Text>
-          <TouchableOpacity 
-            onPress={onClear} 
+          <TouchableOpacity
+            onPress={onClear}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             style={styles.clearBtn}
           >
-            <Icon name="times" size={12} color="rgba(255,255,255,0.5)" />
+            <Icon name="times" size={12} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       );
     }
 
-    // Idle state - show nothing
+    // Idle state
     return null;
   };
 
@@ -137,59 +138,64 @@ const ScanHeader = ({
     <View style={styles.headerContent}>
       {/* Top Row: Logo + Category Browser Button */}
       <View style={styles.topRow}>
-        <View style={styles.logoSection}>
-          <Image 
-            source={require('../../../../assets/icon.png')} 
-            style={styles.logoImage}
-          />
-          <Text style={styles.logoName}>RADA KE</Text>
-        </View>
+       <View style={styles.logoSection}>
+  <View style={styles.logoImageWrap}>
+    <Image
+      source={require('../../../../assets/icon.png')}
+      style={styles.logoImage}
+      resizeMode="contain"
+    />
+  </View>
+  <Text style={styles.logoName}>
+    RADA <Text style={styles.logoKe}>KE</Text>
+  </Text>
+</View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.categoryBrowserBtn}
           onPress={onOpenCategoryBrowser}
           activeOpacity={0.7}
         >
-          <Icon name="th-large" size={14} color="#22C55E" />
+          <Icon name="th-large" size={14} color={colors.primary} />
           <Text style={styles.categoryBrowserText}>
             All ({categories.length})
           </Text>
-          <Icon name="angle-right" size={12} color="rgba(255,255,255,0.4)" />
+          <Icon name="angle-right" size={12} color={colors.textDim} />
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Row: Radius Control (always visible) */}
+      {/* Bottom Row: Radius Control */}
       <View style={styles.radiusSection}>
         <Text style={styles.radiusLabel}>Scanning radius:</Text>
         <View style={styles.radiusControls}>
-          <TouchableOpacity 
-            onPress={onRadiusDown} 
+          <TouchableOpacity
+            onPress={onRadiusDown}
             style={styles.radiusButton}
             activeOpacity={0.7}
           >
-            <Icon name="minus" size={12} color="#22C55E" />
+            <Icon name="minus" size={12} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity onLongPress={handleLongPressRadius}>
             <Text style={styles.radiusValue}>{searchRadius}km</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={onRadiusUp} 
+          <TouchableOpacity
+            onPress={onRadiusUp}
             style={styles.radiusButton}
             activeOpacity={0.7}
           >
-            <Icon name="plus" size={12} color="#22C55E" />
+            <Icon name="plus" size={12} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Status Badge - only shows when scanning or results */}
+      {/* Status Badge */}
       {renderStatusContent()}
     </View>
   );
 
   return (
-    <View 
-      style={[styles.headerWrap, { paddingTop: insets.top + 2 }]} 
+    <View
+      style={[styles.headerWrap, { paddingTop: insets.top + 2 }]}
       pointerEvents="box-none"
     >
       {Platform.OS === 'ios' ? (
@@ -219,11 +225,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.12)',
-    shadowColor: '#000',
+    borderColor: colors.primaryBorder,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 5,
   },
   headerContent: {
@@ -236,43 +242,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+
+  // ── Logo
   logoSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  logoImage: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+  logoBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  logoBadgeText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
   },
   logoName: {
     fontSize: 14,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.9)',
-    letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.92)',
+    letterSpacing: 1.5,
   },
+  logoImageWrap: {
+  width: 28,
+  height: 28,
+  borderRadius: 8,
+  overflow: 'hidden',
+  borderWidth: 1,
+  borderColor: colors.primaryBorder,
+},
+logoImage: {
+  width: '100%',
+  height: '100%',
+},
+  logoKe: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+
+  // ── Category browser button
   categoryBrowserBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(34,197,94,0.1)',
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.2)',
+    borderColor: colors.primaryBorder,
   },
   categoryBrowserText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#22C55E',
+    color: colors.primaryLight,
   },
+
+  // ── Radius
   radiusSection: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -280,7 +322,7 @@ const styles = StyleSheet.create({
   radiusLabel: {
     fontSize: 11,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.textMuted,
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
@@ -293,17 +335,21 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(34,197,94,0.1)',
+    backgroundColor: colors.primarySurface,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radiusValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#22C55E',
+    color: colors.primaryLight,
     minWidth: 45,
     textAlign: 'center',
   },
+
+  // ── Status badge
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -317,14 +363,14 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.8)',
+    color: colors.textMuted,
     flex: 1,
   },
   resultCount: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#22C55E',
-    backgroundColor: 'rgba(34,197,94,0.15)',
+    color: colors.primaryLight,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
@@ -333,7 +379,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
