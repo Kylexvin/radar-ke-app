@@ -14,13 +14,13 @@ export default function MainNavigator() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
+  backgroundColor: '#0e0e0e',   // solid, not rgba surface
+  borderTopColor: theme.colors.border,
+  borderTopWidth: 1,
+  height: 60,
+  paddingBottom: 8,
+  paddingTop: 8,
+},
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarLabelStyle: {

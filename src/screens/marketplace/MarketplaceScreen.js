@@ -172,10 +172,10 @@ const MarketplaceScreen = ({ navigation }) => {
     setTimeout(() => setRefreshing(false), 1200);
   };
 
-  const handleShopPress = shop => {
-    Haptics.selectionAsync();
-    navigation.navigate('Shop', { shopId: shop.id });
-  };
+const handleShopPress = shop => {
+  Haptics.selectionAsync();
+  navigation.navigate('Shop', { shop });
+};
 
   // ─── HEADER ──────────────────────────────────────────────────────────────────
   const renderHeader = () => (
