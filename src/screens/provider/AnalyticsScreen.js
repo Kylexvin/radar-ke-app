@@ -50,7 +50,7 @@ export default function AnalyticsScreen() {
   const [activeBar, setActiveBar] = useState(null);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: 0 }]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Analytics</Text>

@@ -279,7 +279,7 @@ const ScanMap = forwardRef(({
             </Marker>
             <Circle
               center={scanOrigin || userCoords}
-              radius={searchRadius * 1000}
+              radius={searchRadius && searchRadius > 0 ? searchRadius * 1000 : 1000}
               fillColor={circleColor + '0D'}
               strokeColor={circleColor + '55'}
               strokeWidth={1.5}
@@ -310,7 +310,8 @@ const ScanMap = forwardRef(({
                 </View>
               </Animated.View>
             </Marker>
-            {selectedProvider?.id === p.id && (
+            {/* FIXED: Added validation for radiusKm to prevent negative/undefined radius error */}
+            {selectedProvider?.id === p.id && p.radiusKm && p.radiusKm > 0 && (
               <Circle
                 center={p.coordinates}
                 radius={p.radiusKm * 1000}
@@ -395,5 +396,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 });
+
+
 
 export default ScanMap;

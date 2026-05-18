@@ -47,7 +47,7 @@ export default function ProviderDashboardScreen({ navigation }) {
   const initials = businessName.charAt(0).toUpperCase();
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: 0 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
