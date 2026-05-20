@@ -10,6 +10,7 @@ import BookingsScreen from '../screens/provider/BookingsScreen';
 
 const Stack = createNativeStackNavigator();
 
+
 export default function ProviderNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
