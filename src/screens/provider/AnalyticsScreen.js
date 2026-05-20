@@ -7,13 +7,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme from '../../utils/theme';
 
 const { width } = Dimensions.get('window');
-
 const PERIODS = ['Week', 'Month', '3 Months'];
 
 const STATS = [
@@ -44,30 +46,38 @@ const TOP_AREAS = [
   { area: 'Karen', count: 9, pct: 0.19 },
 ];
 
-export default function AnalyticsScreen() {
+export default function AnalyticsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [activePeriod, setActivePeriod] = useState('Week');
   const [activeBar, setActiveBar] = useState(null);
 
   return (
-    <View style={[styles.root, { paddingTop: 0 }]}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} translucent />
+      
+      {/* Header - ZERO padding top, absolute zero */}
+      <View style={[styles.header, { marginTop: Platform.OS === 'ios' ? insets.top : 0 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Analytics</Text>
-        <View style={styles.periodRow}>
-          {PERIODS.map(p => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.periodBtn, activePeriod === p && styles.periodBtnActive]}
-              onPress={() => setActivePeriod(p)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.periodText, activePeriod === p && styles.periodTextActive]}>
-                {p}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7}>
+          <Ionicons name="download-outline" size={18} color={theme.colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Period selector */}
+      <View style={styles.periodRow}>
+        {PERIODS.map(p => (
+          <TouchableOpacity
+            key={p}
+            style={[styles.periodBtn, activePeriod === p && styles.periodBtnActive]}
+            onPress={() => setActivePeriod(p)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.periodText, activePeriod === p && styles.periodTextActive]}>{p}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <ScrollView
@@ -84,7 +94,7 @@ export default function AnalyticsScreen() {
                 </View>
                 <View style={[
                   styles.changeBadge,
-                  { backgroundColor: s.up ? 'rgba(34,197,94,0.12)' : 'rgba(255,32,32,0.12)' }
+                  { backgroundColor: s.up ? theme.colors.success + '12' : theme.colors.error + '12' }
                 ]}>
                   <Ionicons
                     name={s.up ? 'trending-up' : 'trending-down'}
@@ -103,9 +113,9 @@ export default function AnalyticsScreen() {
         </View>
 
         {/* Bar Chart */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Views this week</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Views this {activePeriod.toLowerCase()}</Text>
             <View style={styles.legend}>
               <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
               <Text style={styles.legendText}>Views</Text>
@@ -113,7 +123,6 @@ export default function AnalyticsScreen() {
               <Text style={styles.legendText}>Contacts</Text>
             </View>
           </View>
-
           <View style={styles.chart}>
             {BAR_DATA.map((d, i) => {
               const viewH = (d.views / MAX_VAL) * BAR_HEIGHT;
@@ -133,14 +142,14 @@ export default function AnalyticsScreen() {
                     </View>
                   )}
                   <View style={styles.bars}>
-                    <View style={[
-                      styles.bar,
-                      { height: viewH, backgroundColor: isActive ? theme.colors.primaryLight : theme.colors.primary + 'CC' }
-                    ]} />
-                    <View style={[
-                      styles.bar,
-                      { height: contactH, backgroundColor: isActive ? theme.colors.success : theme.colors.success + '99' }
-                    ]} />
+                    <View style={[styles.bar, {
+                      height: viewH,
+                      backgroundColor: isActive ? theme.colors.primaryLight : theme.colors.primary + 'BB'
+                    }]} />
+                    <View style={[styles.bar, {
+                      height: contactH,
+                      backgroundColor: isActive ? theme.colors.success : theme.colors.success + '88'
+                    }]} />
                   </View>
                   <Text style={[styles.barLabel, isActive && { color: theme.colors.text }]}>{d.day}</Text>
                 </TouchableOpacity>
@@ -150,27 +159,28 @@ export default function AnalyticsScreen() {
         </View>
 
         {/* Top Areas */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Top areas scanning you</Text>
-          <View style={styles.areaList}>
-            {TOP_AREAS.map((a, i) => (
-              <View key={i} style={styles.areaRow}>
-                <View style={styles.areaLeft}>
-                  <Text style={styles.areaRank}>#{i + 1}</Text>
-                  <Text style={styles.areaName}>{a.area}</Text>
-                </View>
-                <View style={styles.areaBarWrap}>
-                  <View style={[styles.areaBar, { width: `${a.pct * 100}%` }]} />
-                </View>
-                <Text style={styles.areaCount}>{a.count}</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Top areas scanning you</Text>
+          {TOP_AREAS.map((a, i) => (
+            <View key={i} style={styles.areaRow}>
+              <Text style={styles.areaRank}>#{i + 1}</Text>
+              <Text style={styles.areaName}>{a.area}</Text>
+              <View style={styles.areaBarWrap}>
+                <LinearGradient
+                  colors={[theme.colors.primary, theme.colors.primaryLight]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.areaBar, { width: `${a.pct * 100}%` }]}
+                />
               </View>
-            ))}
-          </View>
+              <Text style={styles.areaCount}>{a.count}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* Coming Soon */}
+        {/* Coming soon */}
         <View style={styles.comingSoon}>
-          <Ionicons name="construct-outline" size={20} color={theme.colors.textDim} />
+          <Ionicons name="construct-outline" size={16} color={theme.colors.textDim} />
           <Text style={styles.comingSoonText}>Revenue & booking analytics coming soon</Text>
         </View>
       </ScrollView>
@@ -179,31 +189,58 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
+  root: { 
+    flex: 1, 
+    backgroundColor: theme.colors.background 
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-    gap: 12,
+    backgroundColor: theme.colors.background,
+    // ZERO padding top - absolute zero space
   },
-  headerTitle: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: '800',
-    color: theme.colors.text,
-    letterSpacing: 0.3,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { 
+    fontSize: theme.fontSizes.lg, 
+    fontWeight: '800', 
+    color: theme.colors.text 
   },
   periodRow: {
     flexDirection: 'row',
     gap: 8,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
   },
   periodBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -213,22 +250,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primarySurface,
     borderColor: theme.colors.primaryBorder,
   },
-  periodText: {
-    fontSize: theme.fontSizes.sm,
-    fontWeight: '600',
-    color: theme.colors.textMuted,
+  periodText: { 
+    fontSize: theme.fontSizes.sm, 
+    fontWeight: '600', 
+    color: theme.colors.textMuted 
   },
-  periodTextActive: {
-    color: theme.colors.primary,
+  periodTextActive: { 
+    color: theme.colors.primary 
   },
-  scroll: {
-    padding: theme.spacing.lg,
-    gap: 20,
+  scroll: { 
+    padding: theme.spacing.lg, 
+    gap: 14 
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  statsGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: 10 
   },
   statCard: {
     width: (width - theme.spacing.lg * 2 - 10) / 2,
@@ -239,10 +276,10 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 6,
   },
-  statTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  statTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
   },
   statIconWrap: {
     width: 30,
@@ -260,15 +297,15 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  changeText: {
-    fontSize: 10,
-    fontWeight: '700',
+  changeText: { 
+    fontSize: 10, 
+    fontWeight: '700' 
   },
-  statValue: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: '800',
-    color: theme.colors.text,
-    marginTop: 4,
+  statValue: { 
+    fontSize: theme.fontSizes.xl, 
+    fontWeight: '800', 
+    color: theme.colors.text, 
+    marginTop: 4 
   },
   statLabel: {
     fontSize: theme.fontSizes.xs,
@@ -277,140 +314,132 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  section: {
+  card: {
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 20,
     padding: 16,
     gap: 14,
-    marginTop: 10,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  cardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
   },
-  sectionTitle: {
-    fontSize: theme.fontSizes.md,
+  cardTitle: {
+    fontSize: theme.fontSizes.sm,
     fontWeight: '700',
-    color: theme.colors.text,
-  },
-  legend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 10,
     color: theme.colors.textMuted,
-    marginRight: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  legend: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 5 
+  },
+  legendDot: { 
+    width: 7, 
+    height: 7, 
+    borderRadius: 4 
+  },
+  legendText: { 
+    fontSize: 10, 
+    color: theme.colors.textMuted, 
+    marginRight: 5 
   },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: BAR_HEIGHT + 40,
-    paddingTop: 32,
+    height: BAR_HEIGHT + 36,
+    paddingTop: 28,
   },
-  barGroup: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
+  barGroup: { 
+    flex: 1, 
+    alignItems: 'center', 
+    gap: 6, 
+    position: 'relative' 
   },
-  bars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
+  bars: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-end', 
+    gap: 2 
   },
-  bar: {
-    width: 8,
-    borderRadius: 4,
-    minHeight: 4,
+  bar: { 
+    width: 8, 
+    borderRadius: 4, 
+    minHeight: 4 
   },
-  barLabel: {
-    fontSize: 10,
-    color: theme.colors.textDim,
-    fontWeight: '600',
+  barLabel: { 
+    fontSize: 10, 
+    color: theme.colors.textDim, 
+    fontWeight: '600' 
   },
   barTooltip: {
     position: 'absolute',
     top: 0,
-    backgroundColor: 'rgba(14,14,14,0.95)',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.primaryBorder,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
     zIndex: 10,
-    minWidth: 80,
+    minWidth: 82,
     alignItems: 'center',
   },
-  barTooltipText: {
-    fontSize: 10,
-    color: theme.colors.text,
-    fontWeight: '600',
+  barTooltipText: { 
+    fontSize: 10, 
+    color: theme.colors.text, 
+    fontWeight: '600' 
   },
-  areaList: {
-    gap: 12,
+  areaRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10 
   },
-  areaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  areaRank: { 
+    fontSize: 11, 
+    color: theme.colors.textDim, 
+    fontWeight: '700', 
+    width: 22 
   },
-  areaLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    width: 100,
+  areaName: { 
+    fontSize: theme.fontSizes.sm, 
+    color: theme.colors.text, 
+    fontWeight: '600', 
+    width: 80 
   },
-  areaRank: {
-    fontSize: 11,
-    color: theme.colors.textDim,
-    fontWeight: '700',
-    width: 22,
+  areaBarWrap: { 
+    flex: 1, 
+    height: 6, 
+    backgroundColor: theme.colors.surfaceLight, 
+    borderRadius: 3, 
+    overflow: 'hidden' 
   },
-  areaName: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.text,
-    fontWeight: '600',
+  areaBar: { 
+    height: 6, 
+    borderRadius: 3 
   },
-  areaBarWrap: {
-    flex: 1,
-    height: 6,
-    backgroundColor: theme.colors.surfaceLight,
-    borderRadius: 3,
-    overflow: 'hidden',
+  areaCount: { 
+    fontSize: theme.fontSizes.sm, 
+    color: theme.colors.textMuted, 
+    fontWeight: '700', 
+    width: 28, 
+    textAlign: 'right' 
   },
-  areaBar: {
-    height: 6,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 3,
+  comingSoon: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    justifyContent: 'center', 
+    paddingVertical: 16 
   },
-  areaCount: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textMuted,
-    fontWeight: '700',
-    width: 28,
-    textAlign: 'right',
-  },
-  comingSoon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    justifyContent: 'center',
-    marginTop: 8,
-    paddingVertical: 16,
-  },
-  comingSoonText: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textDim,
-    fontStyle: 'italic',
+  comingSoonText: { 
+    fontSize: theme.fontSizes.sm, 
+    color: theme.colors.textDim, 
+    fontStyle: 'italic' 
   },
 });

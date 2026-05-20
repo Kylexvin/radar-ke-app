@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Switch,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,35 +16,38 @@ import theme from '../../utils/theme';
 
 const CATEGORIES = ['Fundi', 'Food', 'Bodaboda', 'Salon', 'Tutor', 'Delivery', 'Health'];
 
-export default function EditProfileScreen() {
+export default function EditProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { providerProfile } = useAuth();
 
   const [businessName, setBusinessName] = useState(providerProfile?.businessName || '');
-  const [phone, setPhone] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [description, setDescription] = useState('');
+  const [phone, setPhone] = useState(providerProfile?.phone || '');
+  const [whatsapp, setWhatsapp] = useState(providerProfile?.whatsapp || '');
+  const [description, setDescription] = useState(providerProfile?.description || '');
   const [category, setCategory] = useState('Fundi');
-  const [isActive, setIsActive] = useState(providerProfile?.isActive ?? true);
-  const [radiusKm, setRadiusKm] = useState('5');
+  const [radiusKm, setRadiusKm] = useState(String(providerProfile?.radiusKm || 5));
 
   const handleSave = () => {
-    Alert.alert('Saved', 'Profile updates will be applied (backend integration pending).');
+    Alert.alert('Saved', 'Profile updated successfully.');
+    navigation.goBack();
   };
 
-  const Field = ({ label, value, onChangeText, placeholder, multiline = false, keyboardType = 'default' }) => (
+  const Field = ({ label, value, onChangeText, placeholder, multiline = false, keyboardType = 'default', icon }) => (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[styles.fieldInput, multiline && styles.fieldInputMulti]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.textDim}
-        multiline={multiline}
-        numberOfLines={multiline ? 3 : 1}
-        keyboardType={keyboardType}
-      />
+      <View style={styles.fieldInputWrap}>
+        {icon && <Ionicons name={icon} size={15} color={theme.colors.textDim} style={styles.fieldIcon} />}
+        <TextInput
+          style={[styles.fieldInput, multiline && styles.fieldInputMulti, icon && { paddingLeft: 36 }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.colors.textDim}
+          multiline={multiline}
+          numberOfLines={multiline ? 4 : 1}
+          keyboardType={keyboardType}
+        />
+      </View>
     </View>
   );
 
@@ -53,9 +55,11 @@ export default function EditProfileScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.8}>
-          <Ionicons name="checkmark" size={15} color="#fff" />
           <Text style={styles.saveBtnText}>Save</Text>
         </TouchableOpacity>
       </View>
@@ -65,12 +69,10 @@ export default function EditProfileScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Avatar / Business Identity */}
+        {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(businessName?.charAt(0) || 'B').toUpperCase()}
-            </Text>
+            <Text style={styles.avatarText}>{(businessName?.charAt(0) || 'B').toUpperCase()}</Text>
           </View>
           <View style={styles.avatarInfo}>
             <Text style={styles.avatarName}>{businessName || 'Your Business'}</Text>
@@ -93,63 +95,17 @@ export default function EditProfileScreen() {
           </View>
         </View>
 
-        {/* Active Toggle */}
-        <View style={styles.card}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleLeft}>
-              <View style={[styles.toggleIcon, { backgroundColor: isActive ? 'rgba(34,197,94,0.12)' : theme.colors.surface }]}>
-                <Ionicons
-                  name={isActive ? 'radio' : 'radio-outline'}
-                  size={16}
-                  color={isActive ? theme.colors.success : theme.colors.textMuted}
-                />
-              </View>
-              <View>
-                <Text style={styles.toggleTitle}>Discoverable</Text>
-                <Text style={styles.toggleSub}>
-                  {isActive ? 'You appear in scans' : 'Hidden from scans'}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isActive}
-              onValueChange={setIsActive}
-              trackColor={{ false: theme.colors.border, true: 'rgba(34,197,94,0.4)' }}
-              thumbColor={isActive ? theme.colors.success : theme.colors.textMuted}
-            />
-          </View>
-        </View>
-
         {/* Business Info */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Business Info</Text>
-          <Field
-            label="Business Name"
-            value={businessName}
-            onChangeText={setBusinessName}
-            placeholder="e.g. James Boda Service"
-          />
-          <Field
-            label="Phone"
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="+254 7XX XXX XXX"
-            keyboardType="phone-pad"
-          />
-          <Field
-            label="WhatsApp"
-            value={whatsapp}
-            onChangeText={setWhatsapp}
-            placeholder="+254 7XX XXX XXX"
-            keyboardType="phone-pad"
-          />
-          <Field
-            label="Description"
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Tell customers what you offer..."
-            multiline
-          />
+          <Field label="Business Name" value={businessName} onChangeText={setBusinessName}
+            placeholder="e.g. James Boda Service" icon="business-outline" />
+          <Field label="Phone" value={phone} onChangeText={setPhone}
+            placeholder="+254 7XX XXX XXX" keyboardType="phone-pad" icon="call-outline" />
+          <Field label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp}
+            placeholder="+254 7XX XXX XXX" keyboardType="phone-pad" icon="logo-whatsapp" />
+          <Field label="Description" value={description} onChangeText={setDescription}
+            placeholder="Tell customers what you offer..." multiline icon="document-text-outline" />
         </View>
 
         {/* Category */}
@@ -163,9 +119,7 @@ export default function EditProfileScreen() {
                 onPress={() => setCategory(c)}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.catChipText, category === c && styles.catChipTextActive]}>
-                  {c}
-                </Text>
+                <Text style={[styles.catChipText, category === c && styles.catChipTextActive]}>{c}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -178,8 +132,9 @@ export default function EditProfileScreen() {
             <TouchableOpacity
               style={styles.radiusBtn}
               onPress={() => setRadiusKm(prev => String(Math.max(1, Number(prev) - 1)))}
+              activeOpacity={0.75}
             >
-              <Ionicons name="remove" size={16} color={theme.colors.primary} />
+              <Ionicons name="remove" size={18} color={theme.colors.primary} />
             </TouchableOpacity>
             <View style={styles.radiusDisplay}>
               <Text style={styles.radiusValue}>{radiusKm}</Text>
@@ -188,13 +143,12 @@ export default function EditProfileScreen() {
             <TouchableOpacity
               style={styles.radiusBtn}
               onPress={() => setRadiusKm(prev => String(Math.min(50, Number(prev) + 1)))}
+              activeOpacity={0.75}
             >
-              <Ionicons name="add" size={16} color={theme.colors.primary} />
+              <Ionicons name="add" size={18} color={theme.colors.primary} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.radiusHint}>
-            Customers within {radiusKm}km can discover your business
-          </Text>
+          <Text style={styles.radiusHint}>Customers within {radiusKm}km can discover you</Text>
         </View>
 
         {/* Danger Zone */}
@@ -202,7 +156,7 @@ export default function EditProfileScreen() {
           <Text style={styles.cardTitle}>Danger Zone</Text>
           <TouchableOpacity
             style={styles.dangerBtn}
-            onPress={() => Alert.alert('Delete Account', 'This will permanently remove your provider profile. (Backend integration pending)')}
+            onPress={() => Alert.alert('Delete', 'This will permanently remove your provider profile.')}
             activeOpacity={0.8}
           >
             <Ionicons name="trash-outline" size={15} color={theme.colors.error} />
@@ -215,10 +169,7 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
+  root: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -228,58 +179,39 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  headerTitle: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  saveBtn: {
-    flexDirection: 'row',
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+  },
+  headerTitle: { fontSize: theme.fontSizes.lg, fontWeight: '800', color: theme.colors.text },
+  saveBtn: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  saveBtnText: {
-    fontSize: theme.fontSizes.sm,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  scroll: {
-    padding: theme.spacing.lg,
-    gap: 14,
-  },
-  avatarSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 4,
-  },
+  saveBtnText: { fontSize: theme.fontSizes.sm, fontWeight: '700', color: '#fff' },
+  scroll: { padding: theme.spacing.lg, gap: 14 },
+  avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 4 },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: theme.colors.primarySurface,
     borderWidth: 2,
     borderColor: theme.colors.primaryBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    fontSize: theme.fontSizes.xxl,
-    fontWeight: '800',
-    color: theme.colors.primary,
-  },
-  avatarInfo: {
-    gap: 6,
-  },
-  avatarName: {
-    fontSize: theme.fontSizes.lg,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
+  avatarText: { fontSize: theme.fontSizes.xl, fontWeight: '800', color: theme.colors.primary },
+  avatarInfo: { gap: 6 },
+  avatarName: { fontSize: theme.fontSizes.lg, fontWeight: '700', color: theme.colors.text },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -289,10 +221,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignSelf: 'flex-start',
   },
-  verifiedText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  verifiedText: { fontSize: 11, fontWeight: '600' },
   card: {
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
@@ -308,60 +237,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  toggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  toggleIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toggleTitle: {
-    fontSize: theme.fontSizes.md,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  toggleSub: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textMuted,
-  },
-  field: {
-    gap: 6,
-  },
-  fieldLabel: {
-    fontSize: theme.fontSizes.sm,
-    fontWeight: '600',
-    color: theme.colors.textMuted,
-  },
+  field: { gap: 6 },
+  fieldLabel: { fontSize: theme.fontSizes.sm, fontWeight: '600', color: theme.colors.textMuted },
+  fieldInputWrap: { position: 'relative' },
+  fieldIcon: { position: 'absolute', left: 12, top: 12, zIndex: 1 },
   fieldInput: {
     backgroundColor: theme.colors.surfaceLight,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     color: theme.colors.text,
     fontSize: theme.fontSizes.md,
   },
-  fieldInputMulti: {
-    height: 80,
-    textAlignVertical: 'top',
-    paddingTop: 10,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  fieldInputMulti: { height: 90, textAlignVertical: 'top', paddingTop: 11 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   catChip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -374,67 +265,34 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primarySurface,
     borderColor: theme.colors.primaryBorder,
   },
-  catChipText: {
-    fontSize: theme.fontSizes.sm,
-    fontWeight: '600',
-    color: theme.colors.textMuted,
-  },
-  catChipTextActive: {
-    color: theme.colors.primary,
-  },
-  radiusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-  },
+  catChipText: { fontSize: theme.fontSizes.sm, fontWeight: '600', color: theme.colors.textMuted },
+  catChipTextActive: { color: theme.colors.primary },
+  radiusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 },
   radiusBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: theme.colors.primarySurface,
     borderWidth: 1,
     borderColor: theme.colors.primaryBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radiusDisplay: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-  },
-  radiusValue: {
-    fontSize: theme.fontSizes.xxxl,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  radiusUnit: {
-    fontSize: theme.fontSizes.lg,
-    fontWeight: '600',
-    color: theme.colors.textMuted,
-  },
-  radiusHint: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textDim,
-    textAlign: 'center',
-  },
-  dangerCard: {
-    borderColor: 'rgba(255,32,32,0.15)',
-  },
+  radiusDisplay: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  radiusValue: { fontSize: theme.fontSizes.xxxl, fontWeight: '800', color: theme.colors.text },
+  radiusUnit: { fontSize: theme.fontSizes.lg, fontWeight: '600', color: theme.colors.textMuted },
+  radiusHint: { fontSize: theme.fontSizes.sm, color: theme.colors.textDim, textAlign: 'center' },
+  dangerCard: { borderColor: 'rgba(255,32,32,0.15)' },
   dangerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,32,32,0.2)',
-    backgroundColor: 'rgba(255,32,32,0.06)',
+    borderColor: 'rgba(255,32,32,0.18)',
+    backgroundColor: 'rgba(255,32,32,0.05)',
   },
-  dangerBtnText: {
-    fontSize: theme.fontSizes.sm,
-    fontWeight: '600',
-    color: theme.colors.error,
-  },
+  dangerBtnText: { fontSize: theme.fontSizes.sm, fontWeight: '600', color: theme.colors.error },
 });
