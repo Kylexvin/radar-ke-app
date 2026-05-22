@@ -35,7 +35,6 @@ const DARK_MAP_STYLE = [
   { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#1c1c22' }] },
 ];
 
-// Static dummy reviews — replace with API data later
 const DUMMY_REVIEWS = [
   { id: 'r1', name: 'James K.', initial: 'J', rating: 5, text: 'Very professional and fast. Fixed my issue in under an hour. Highly recommend.', date: '2 days ago' },
   { id: 'r2', name: 'Amina W.', initial: 'A', rating: 4, text: 'Good service, arrived on time. Pricing was fair. Will use again.', date: '5 days ago' },
@@ -73,11 +72,19 @@ const InfoRow = ({ icon, label, value }) => (
 export default function ProviderDetailScreen({ route, navigation }) {
   const { provider } = route.params;
   const insets = useSafeAreaInsets();
-
   const [showAllReviews, setShowAllReviews] = useState(false);
 
   const reviews = DUMMY_REVIEWS;
   const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 2);
+
+  // Capabilities — comes from provider object (populated by API)
+  const hasShowcase = provider.capabilities?.hasShowcase ?? false;
+  const hasShop = provider.capabilities?.hasShop ?? false;
+  const canBrowse = hasShowcase || hasShop;
+
+  // Label and icon for browse CTA
+  const browseLabel = hasShop ? 'View Menu / Order' : 'View Showcase';
+  const browseIcon = hasShop ? 'shopping-cart' : 'th-large';
 
   const handleCall = useCallback(() => {
     if (!provider.phone) return;
@@ -107,6 +114,11 @@ export default function ProviderDetailScreen({ route, navigation }) {
     Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
   }, [provider]);
 
+  const handleBrowseShowcase = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('ProviderShowcase', { provider });
+  }, [provider, navigation]);
+
   const hasCoords = provider.coordinates?.latitude && provider.coordinates?.longitude;
 
   return (
@@ -115,16 +127,21 @@ export default function ProviderDetailScreen({ route, navigation }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + (canBrowse ? 140 : 100) }}
       >
-        {/* ── HERO ─────────────────────────────────────────── */}
-        <View style={[styles.hero, { paddingTop: insets.top + 20 }]}>
-          {/* Avatar - brand red */}
+        {/* Back button */}
+        <View style={[styles.backRow, { top: insets.top + 10 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Icon name="chevron-left" size={16} color="rgba(255,255,255,0.8)" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── HERO ── */}
+        <View style={[styles.hero, { paddingTop: insets.top + 56 }]}>
           <View style={[styles.heroAvatar, { backgroundColor: theme.colors.primary + '18', borderColor: theme.colors.primary + '35' }]}>
             <Icon name={provider.icon ?? 'user'} size={40} color={theme.colors.primary} />
           </View>
 
-          {/* Name + badges */}
           <View style={styles.heroMeta}>
             <View style={styles.heroNameRow}>
               <Text style={styles.heroName}>{provider.name}</Text>
@@ -136,7 +153,6 @@ export default function ProviderDetailScreen({ route, navigation }) {
               )}
             </View>
 
-            {/* Category pill - brand red */}
             <View style={[styles.catPill, { backgroundColor: theme.colors.primary + '18', borderColor: theme.colors.primary + '30' }]}>
               <Icon name={provider.icon ?? 'wrench'} size={10} color={theme.colors.primary} />
               <Text style={[styles.catPillText, { color: theme.colors.primary }]}>
@@ -144,7 +160,6 @@ export default function ProviderDetailScreen({ route, navigation }) {
               </Text>
             </View>
 
-            {/* Rating + distance row */}
             <View style={styles.heroStats}>
               <StarRow rating={provider.rating ?? 4.5} size={12} />
               <Text style={styles.heroRatingVal}>{provider.rating ?? '4.5'}</Text>
@@ -164,10 +179,28 @@ export default function ProviderDetailScreen({ route, navigation }) {
                 </Text>
               </View>
             </View>
+
+            {/* Capability pills */}
+            {canBrowse && (
+              <View style={styles.capPillsRow}>
+                {hasShowcase && (
+                  <View style={styles.capPill}>
+                    <Icon name="th-large" size={9} color={theme.colors.primary} />
+                    <Text style={styles.capPillText}>Showcase</Text>
+                  </View>
+                )}
+                {hasShop && (
+                  <View style={[styles.capPill, { backgroundColor: 'rgba(255,140,0,0.1)', borderColor: 'rgba(255,140,0,0.25)' }]}>
+                    <Icon name="shopping-cart" size={9} color={theme.colors.warning} />
+                    <Text style={[styles.capPillText, { color: theme.colors.warning }]}>Orders</Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         </View>
 
-        {/* ── QUICK ACTIONS ────────────────────────────────── */}
+        {/* ── QUICK ACTIONS ── */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={[styles.actionSecondary, { borderColor: '#25D36640' }]}
@@ -188,7 +221,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── INFO CARDS ───────────────────────────────────── */}
+        {/* ── DETAILS ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Details</Text>
           <View style={styles.infoCard}>
@@ -210,7 +243,49 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* ── MINI MAP ─────────────────────────────────────── */}
+        {/* ── SHOWCASE PREVIEW (if canBrowse) ── */}
+        {canBrowse && (
+          <View style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitle}>{hasShop ? 'Menu / Products' : 'Showcase'}</Text>
+              <TouchableOpacity onPress={handleBrowseShowcase} activeOpacity={0.75}>
+                <Text style={[styles.seeAllText, { color: theme.colors.primary }]}>See all →</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Dummy preview tiles */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewScroll}>
+              {[
+                { name: 'Item One', price: 'KSh 500' },
+                { name: 'Item Two', price: 'KSh 1,200' },
+                { name: 'Item Three', price: 'KSh 800' },
+              ].map((item, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.previewCard}
+                  onPress={handleBrowseShowcase}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.previewImg}>
+                    <Icon name="image" size={20} color="rgba(255,255,255,0.15)" />
+                  </View>
+                  <Text style={styles.previewName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.previewPrice}>{item.price}</Text>
+                  {hasShop && (
+                    <View style={styles.previewOrderBtn}>
+                      <Text style={styles.previewOrderText}>Inquire</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.previewMore} onPress={handleBrowseShowcase} activeOpacity={0.8}>
+                <Icon name="arrow-right" size={18} color={theme.colors.primary} />
+                <Text style={[styles.previewMoreText, { color: theme.colors.primary }]}>View all</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── MINI MAP ── */}
         {hasCoords && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Location</Text>
@@ -234,10 +309,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
                 showsCompass={false}
                 toolbarEnabled={false}
               >
-                <Marker
-                  coordinate={provider.coordinates}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                >
+                <Marker coordinate={provider.coordinates} anchor={{ x: 0.5, y: 0.5 }}>
                   <View style={[styles.mapPin, { borderColor: theme.colors.primary + '80', backgroundColor: 'rgba(9,9,11,0.92)' }]}>
                     <Icon name={provider.icon ?? 'map-marker'} size={13} color={theme.colors.primary} />
                   </View>
@@ -250,8 +322,6 @@ export default function ProviderDetailScreen({ route, navigation }) {
                   strokeWidth={1.5}
                 />
               </MapView>
-
-              {/* Directions overlay button */}
               <TouchableOpacity
                 style={[styles.mapDirectionsBtn, { backgroundColor: theme.colors.primary + '18', borderColor: theme.colors.primary + '35' }]}
                 onPress={handleDirections}
@@ -264,7 +334,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* ── REVIEWS ──────────────────────────────────────── */}
+        {/* ── REVIEWS ── */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>Reviews</Text>
@@ -305,20 +375,29 @@ export default function ProviderDetailScreen({ route, navigation }) {
               <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>
                 {showAllReviews ? 'Show less' : `Show all ${reviews.length} reviews`}
               </Text>
-              <Icon
-                name={showAllReviews ? 'chevron-up' : 'chevron-down'}
-                size={11}
-                color={theme.colors.primary}
-              />
+              <Icon name={showAllReviews ? 'chevron-up' : 'chevron-down'} size={11} color={theme.colors.primary} />
             </TouchableOpacity>
           )}
         </View>
       </ScrollView>
 
-      {/* ── STICKY BOTTOM CTA - BRAND RED ────────────────────────────── */}
+      {/* ── STICKY BOTTOM CTA ── */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        {/* Showcase/Shop CTA — only when provider has products */}
+        {canBrowse && (
+          <TouchableOpacity
+            style={styles.browseBtn}
+            onPress={handleBrowseShowcase}
+            activeOpacity={0.85}
+          >
+            <Icon name={browseIcon} size={15} color={theme.colors.primary} />
+            <Text style={styles.browseBtnText}>{browseLabel}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Call CTA — always visible */}
         <TouchableOpacity
-          style={[styles.callBtn, { backgroundColor: theme.colors.primary }]}
+          style={[styles.callBtn, !canBrowse && styles.callBtnFull]}
           onPress={handleCall}
           activeOpacity={0.85}
         >
@@ -333,7 +412,14 @@ export default function ProviderDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
 
-  // Hero
+  backRow: { position: 'absolute', left: 16, zIndex: 10 },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: 'rgba(9,9,11,0.85)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+
   hero: {
     paddingHorizontal: 16,
     paddingBottom: 20,
@@ -342,36 +428,23 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   heroAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    flexShrink: 0,
+    width: 72, height: 72, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, flexShrink: 0,
   },
   heroMeta: { flex: 1, gap: 6, paddingTop: 4 },
   heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   heroName: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
   verifiedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+    flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: theme.colors.success + '12',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
   },
   verifiedText: { fontSize: 9, color: theme.colors.success, fontWeight: '700' },
   catPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 7,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 7, borderWidth: 1,
   },
   catPillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
   heroStats: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
@@ -381,120 +454,109 @@ const styles = StyleSheet.create({
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   statusDot: { width: 5, height: 5, borderRadius: 2.5 },
   statusText: { fontSize: 10, fontWeight: '600' },
-
-  // Actions row
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+  capPillsRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  capPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: theme.colors.primarySurface,
+    borderWidth: 1, borderColor: theme.colors.primaryBorder,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
   },
+  capPillText: { fontSize: 9, fontWeight: '700', color: theme.colors.primary, textTransform: 'uppercase', letterSpacing: 0.3 },
+
+  actionsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 24 },
   actionSecondary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: 1,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, paddingVertical: 11, borderRadius: 12, borderWidth: 1,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
   actionSecondaryText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
 
-  // Section
   section: { paddingHorizontal: 16, marginBottom: 24 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.45)', marginBottom: 10, letterSpacing: 0.3, textTransform: 'uppercase' },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  reviewSummaryPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: theme.colors.primary + '10',
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  sectionTitle: {
+    fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.45)',
+    marginBottom: 10, letterSpacing: 0.3, textTransform: 'uppercase',
   },
-  reviewSummaryText: { fontSize: 10, color: theme.colors.primary, fontWeight: '600' },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  seeAllText: { fontSize: 12, fontWeight: '700' },
 
-  // Info card
+  // Showcase preview
+  previewScroll: { gap: 10, paddingRight: 4 },
+  previewCard: {
+    width: 120,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1, borderColor: theme.colors.border,
+    borderRadius: 14, overflow: 'hidden',
+  },
+  previewImg: {
+    height: 80,
+    backgroundColor: theme.colors.surfaceLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewName: {
+    fontSize: theme.fontSizes.sm, fontWeight: '700',
+    color: theme.colors.text, paddingHorizontal: 10, paddingTop: 8,
+  },
+  previewPrice: {
+    fontSize: theme.fontSizes.sm, fontWeight: '800',
+    color: theme.colors.primary, paddingHorizontal: 10, paddingBottom: 4,
+  },
+  previewOrderBtn: {
+    marginHorizontal: 10, marginBottom: 10,
+    backgroundColor: theme.colors.primarySurface,
+    borderWidth: 1, borderColor: theme.colors.primaryBorder,
+    borderRadius: 8, paddingVertical: 5, alignItems: 'center',
+  },
+  previewOrderText: { fontSize: 10, fontWeight: '700', color: theme.colors.primary },
+  previewMore: {
+    width: 80,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1, borderColor: theme.colors.border,
+    borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    gap: 6,
+  },
+  previewMoreText: { fontSize: 11, fontWeight: '700' },
+
   infoCard: {
     backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    overflow: 'hidden',
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)', overflow: 'hidden',
   },
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    flexDirection: 'row', alignItems: 'center',
+    gap: 12, paddingHorizontal: 14, paddingVertical: 13,
   },
-  infoIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  infoIconWrap: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   infoTextWrap: { flex: 1 },
   infoLabel: { fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: '500', marginBottom: 2 },
   infoValue: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
   infoSep: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginLeft: 58 },
 
-  // Mini map
-  mapCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    height: 200,
-  },
+  mapCard: { borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', height: 200 },
   miniMap: { ...StyleSheet.absoluteFillObject },
   mapPin: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, borderWidth: 1,
   },
   mapDirectionsBtn: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
+    position: 'absolute', bottom: 12, right: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
   mapDirectionsBtnText: { fontSize: 11, fontWeight: '700' },
 
-  // Reviews
+  reviewSummaryPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: theme.colors.primary + '10',
+    borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+  },
+  reviewSummaryText: { fontSize: 10, color: theme.colors.primary, fontWeight: '600' },
   reviewCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: 14,
-    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', padding: 14, gap: 10,
   },
   reviewTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  reviewAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
+  reviewAvatar: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   reviewInitial: { fontSize: 14, fontWeight: '800' },
   reviewMeta: { flex: 1, gap: 3 },
   reviewName: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
@@ -502,36 +564,34 @@ const styles = StyleSheet.create({
   reviewDate: { fontSize: 10, color: 'rgba(255,255,255,0.28)' },
   reviewText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 18 },
   showMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
   },
   showMoreText: { fontSize: 12, fontWeight: '600' },
 
-  // Bottom CTA - Brand red
   bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', gap: 10,
+    paddingHorizontal: 16, paddingTop: 12,
     backgroundColor: 'rgba(10,10,10,0.97)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.07)',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)',
   },
+  browseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, paddingVertical: 15, paddingHorizontal: 16, borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryBorder,
+    backgroundColor: theme.colors.primarySurface,
+  },
+  browseBtnText: { fontSize: 13, fontWeight: '700', color: theme.colors.primary },
   callBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-    paddingVertical: 15,
-    borderRadius: 14,
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 9, paddingVertical: 15, borderRadius: 14,
+    backgroundColor: theme.colors.primary,
   },
+  callBtnFull: {
+  flex: 1,
+},
   callBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
 });
