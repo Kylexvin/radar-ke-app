@@ -236,7 +236,7 @@ const SettingsScreen = () => {
 
       {/* Footer */}
       <Text style={styles.footerText}>
-        Rada Ke © 2024 - Scan. Find. Connect.
+        Rada Ke © 2026 - Scan. Find. Connect.
       </Text>
     </ScrollView>
   );
