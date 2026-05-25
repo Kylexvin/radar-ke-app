@@ -245,28 +245,34 @@ const MapScreen = ({ navigation }) => {
 
         if (response.data.success) {
           const apiProviders = response.data.data.providers;
-          const transformedProviders = apiProviders.map(provider => ({
-            id: provider.id,
-            name: provider.name,
-            phone: provider.phone,
-            whatsapp: provider.whatsapp,
-            description: provider.description,
-            locationAddress: provider.locationAddress,
-            address: provider.locationAddress,
-            distance: provider.distance ? `${provider.distance.toFixed(1)}km` : '0km',
-            radiusKm: provider.radiusKm,
-            rating: provider.rating || 4.5,
-            isVerified: provider.isVerified || false,
-            isActive: provider.isActive !== undefined ? provider.isActive : true,
-            category: category.slug,
-            categoryName: category.name,
-            color: category.color,
-            icon: category.iconName,
-            coordinates: {
-              latitude: provider.location.coordinates[1],
-              longitude: provider.location.coordinates[0],
-            },
-          }));
+const transformedProviders = apiProviders.map(provider => ({
+  id: provider.id,
+  name: provider.name,
+  phone: provider.phone,
+  whatsapp: provider.whatsapp,
+  description: provider.description,
+  locationAddress: provider.locationAddress,
+  address: provider.locationAddress,
+  distance: provider.distance ? `${provider.distance.toFixed(1)}km` : '0km',
+  radiusKm: provider.radiusKm,
+  rating: provider.rating || 4.5,
+  isVerified: provider.isVerified || false,
+  isActive: provider.isActive !== undefined ? provider.isActive : true,
+  category: category.slug,
+  categoryName: category.name,
+  color: category.color,
+  icon: category.iconName,
+  coordinates: {
+    latitude: provider.location.coordinates[1],
+    longitude: provider.location.coordinates[0],
+  },
+  capabilities: provider.capabilities ?? {   // ← add this
+    canBeContacted: true,
+    hasShowcase: false,
+    hasShop: false,
+    takesBookings: false,
+  },
+}));
 
           setProviders(transformedProviders);
           setScanState('results');

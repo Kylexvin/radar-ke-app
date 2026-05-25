@@ -22,11 +22,12 @@ const NAIROBI = {
   longitudeDelta: 0.03,
 };
 
+// YOUR ORIGINAL DARK THEME - only changed visibility from 'off' to 'on' on 4 lines
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0e0e10' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#3a3a3a' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#0e0e10' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'on' }] }, // CHANGED: 'off' -> 'on'
   { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1a1a1e' }] },
   { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#1e1e24' }] },
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#242430' }] },
@@ -34,12 +35,12 @@ const DARK_MAP_STYLE = [
   { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#333340' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#080c12' }] },
   { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#111116' }] },
-  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'on' }] }, // CHANGED: 'off' -> 'on'
   { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0f1410' }] },
   { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#131316' }] },
   { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#1c1c22' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.neighborhood', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'on' }] }, // CHANGED: 'off' -> 'on'
+  { featureType: 'administrative.neighborhood', stylers: [{ visibility: 'on' }] }, // CHANGED: 'off' -> 'on'
 ];
 
 const SonarPing = ({ anim, color = '#22C55E', size }) => {
@@ -396,7 +397,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 });
-
-
 
 export default ScanMap;

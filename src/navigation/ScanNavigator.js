@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MapScreen from '../screens/scan/MapScreen';
 import ProviderDetailScreen from '../screens/scan/ProviderDetailScreen';
 import ProviderShowcaseScreen from '../screens/scan/ProviderShowcaseScreen';
+import ShopScreen from '../screens/marketplace/ShopScreen';
 import theme from '../utils/theme';
 
 const Stack = createNativeStackNavigator();
@@ -22,6 +23,10 @@ export default function ScanNavigator() {
       <Stack.Screen name="Map" component={MapScreen} />
       <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />
       <Stack.Screen name="ProviderShowcase" component={ProviderShowcaseScreen} />
+      <Stack.Screen name="Shop" component={ShopScreen} />
+
+
+
     </Stack.Navigator>
   );
 }

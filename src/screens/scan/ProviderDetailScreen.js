@@ -10,6 +10,7 @@ import {
   Alert,
   Dimensions,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -77,13 +78,11 @@ export default function ProviderDetailScreen({ route, navigation }) {
   const reviews = DUMMY_REVIEWS;
   const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 2);
 
-  // Capabilities — comes from provider object (populated by API)
   const hasShowcase = provider.capabilities?.hasShowcase ?? false;
   const hasShop = provider.capabilities?.hasShop ?? false;
   const canBrowse = hasShowcase || hasShop;
 
-  // Label and icon for browse CTA
-  const browseLabel = hasShop ? 'View Menu / Order' : 'View Showcase';
+  const browseLabel = hasShop ? 'View Shop' : 'View Showcase';
   const browseIcon = hasShop ? 'shopping-cart' : 'th-large';
 
   const handleCall = useCallback(() => {
@@ -114,30 +113,27 @@ export default function ProviderDetailScreen({ route, navigation }) {
     Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
   }, [provider]);
 
-  const handleBrowseShowcase = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+const handleBrowseShowcase = useCallback(() => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  if (hasShop) {
+    navigation.navigate('Shop', { providerId: provider.id, provider });
+  } else {
     navigation.navigate('ProviderShowcase', { provider });
-  }, [provider, navigation]);
+  }
+}, [provider, hasShop, navigation]);
 
   const hasCoords = provider.coordinates?.latitude && provider.coordinates?.longitude;
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + (canBrowse ? 140 : 100) }}
       >
-        {/* Back button */}
-        <View style={[styles.backRow, { top: insets.top + 10 }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <Icon name="chevron-left" size={16} color="rgba(255,255,255,0.8)" />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── HERO ── */}
-        <View style={[styles.hero, { paddingTop: insets.top + 56 }]}>
+        {/* Hero Section - ZERO padding top */}
+        <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
           <View style={[styles.heroAvatar, { backgroundColor: theme.colors.primary + '18', borderColor: theme.colors.primary + '35' }]}>
             <Icon name={provider.icon ?? 'user'} size={40} color={theme.colors.primary} />
           </View>
@@ -180,7 +176,6 @@ export default function ProviderDetailScreen({ route, navigation }) {
               </View>
             </View>
 
-            {/* Capability pills */}
             {canBrowse && (
               <View style={styles.capPillsRow}>
                 {hasShowcase && (
@@ -200,7 +195,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* ── QUICK ACTIONS ── */}
+        {/* Quick Actions */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={[styles.actionSecondary, { borderColor: '#25D36640' }]}
@@ -221,7 +216,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── DETAILS ── */}
+        {/* Details Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Details</Text>
           <View style={styles.infoCard}>
@@ -243,16 +238,17 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* ── SHOWCASE PREVIEW (if canBrowse) ── */}
+        {/* Showcase Preview */}
         {canBrowse && (
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>{hasShop ? 'Menu / Products' : 'Showcase'}</Text>
+              <Text style={styles.sectionTitle}>
+  {hasShop ? 'Shop' : 'Showcase'}
+</Text>
               <TouchableOpacity onPress={handleBrowseShowcase} activeOpacity={0.75}>
                 <Text style={[styles.seeAllText, { color: theme.colors.primary }]}>See all →</Text>
               </TouchableOpacity>
             </View>
-            {/* Dummy preview tiles */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewScroll}>
               {[
                 { name: 'Item One', price: 'KSh 500' },
@@ -285,7 +281,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* ── MINI MAP ── */}
+        {/* Mini Map */}
         {hasCoords && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Location</Text>
@@ -334,7 +330,7 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* ── REVIEWS ── */}
+        {/* Reviews Section */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>Reviews</Text>
@@ -381,9 +377,8 @@ export default function ProviderDetailScreen({ route, navigation }) {
         </View>
       </ScrollView>
 
-      {/* ── STICKY BOTTOM CTA ── */}
+      {/* Sticky Bottom CTA */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        {/* Showcase/Shop CTA — only when provider has products */}
         {canBrowse && (
           <TouchableOpacity
             style={styles.browseBtn}
@@ -395,7 +390,6 @@ export default function ProviderDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Call CTA — always visible */}
         <TouchableOpacity
           style={[styles.callBtn, !canBrowse && styles.callBtnFull]}
           onPress={handleCall}
@@ -410,14 +404,9 @@ export default function ProviderDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.background },
-
-  backRow: { position: 'absolute', left: 16, zIndex: 10 },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 12,
-    backgroundColor: 'rgba(9,9,11,0.85)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
+  root: { 
+    flex: 1, 
+    backgroundColor: theme.colors.background 
   },
 
   hero: {
@@ -479,7 +468,6 @@ const styles = StyleSheet.create({
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   seeAllText: { fontSize: 12, fontWeight: '700' },
 
-  // Showcase preview
   previewScroll: { gap: 10, paddingRight: 4 },
   previewCard: {
     width: 120,
@@ -590,8 +578,6 @@ const styles = StyleSheet.create({
     gap: 9, paddingVertical: 15, borderRadius: 14,
     backgroundColor: theme.colors.primary,
   },
-  callBtnFull: {
-  flex: 1,
-},
+  callBtnFull: { flex: 1 },
   callBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
 });
