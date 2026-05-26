@@ -1,5 +1,5 @@
 // src/screens/marketplace/MarketplaceScreen.js
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,14 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome as Icon } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import theme from '../../utils/theme';
 
 const { colors } = theme;
 
-// Dummy providers with hasShop/hasShowcase — replace with API call
-// GET /api/scan/providers?hasShop=true&lat=...&lng=...
-const DUMMY_PROVIDERS = [
+// All shops with full e-commerce capabilities
+const DUMMY_SHOPS = [
   {
     id: '1',
     name: 'Green Grocers',
@@ -29,105 +28,147 @@ const DUMMY_PROVIDERS = [
     color: '#22C55E',
     rating: 4.5,
     distance: '0.8km',
-    isActive: true,
+    isOpen: true,
     isVerified: true,
     address: 'Karen Shopping Centre',
     phone: '+254712345678',
     whatsapp: '254712345678',
     description: 'Fresh vegetables and groceries delivered to your door.',
-    radiusKm: 5,
-    capabilities: { canBeContacted: true, hasShowcase: true, hasShop: true, takesBookings: false },
-    showcaseItems: [
-      { _id: 'i1', name: 'Fresh Tomatoes', price: 50, priceLabel: 'per kg', category: 'Vegetables', isAvailable: true },
-      { _id: 'i2', name: 'Onions', price: 40, priceLabel: 'per kg', category: 'Vegetables', isAvailable: true },
-      { _id: 'i3', name: 'Sukuma Wiki', price: 20, priceLabel: 'per bunch', category: 'Vegetables', isAvailable: true },
+    deliveryFee: 80,
+    minOrder: 200,
+    previewProducts: [
+      { id: 'p1', name: 'Fresh Tomatoes', price: 50, unit: 'per kg' },
+      { id: 'p2', name: 'Onions', price: 40, unit: 'per kg' },
+      { id: 'p3', name: 'Sukuma Wiki', price: 20, unit: 'per bunch' },
     ],
   },
   {
     id: '2',
     name: "Mama Jo's Butchery",
     category: 'food',
-    categoryName: 'Food',
+    categoryName: 'Food & Restaurant',
     color: '#F97316',
     rating: 4.8,
     distance: '1.2km',
-    isActive: true,
+    isOpen: true,
     isVerified: true,
     address: 'Dagoreti Corner',
     phone: '+254723000001',
     whatsapp: '254723000001',
     description: 'Quality meat cuts, fresh daily.',
-    radiusKm: 3,
-    capabilities: { canBeContacted: true, hasShowcase: true, hasShop: true, takesBookings: false },
-    showcaseItems: [
-      { _id: 'i1', name: 'Beef (1kg)', price: 650, priceLabel: 'per kg', category: 'Red Meat', isAvailable: true },
-      { _id: 'i2', name: 'Chicken', price: 550, priceLabel: 'whole', category: 'Poultry', isAvailable: true },
+    deliveryFee: 100,
+    minOrder: 300,
+    previewProducts: [
+      { id: 'p1', name: 'Beef (1kg)', price: 650, unit: 'per kg' },
+      { id: 'p2', name: 'Chicken', price: 550, unit: 'whole' },
     ],
   },
   {
     id: '3',
     name: 'Quick Pharmacy',
     category: 'health',
-    categoryName: 'Health',
+    categoryName: 'Health & Pharmacy',
     color: '#14B8A6',
     rating: 4.2,
     distance: '0.5km',
-    isActive: true,
+    isOpen: true,
     isVerified: false,
     address: 'Next to Shell Petrol',
     phone: '+254711000003',
     whatsapp: '254711000003',
     description: 'Medicines and health products, fast delivery.',
-    radiusKm: 4,
-    capabilities: { canBeContacted: true, hasShowcase: true, hasShop: false, takesBookings: false },
-    showcaseItems: [
-      { _id: 'i1', name: 'Panadol', price: 50, priceLabel: 'per pack', category: 'Pain Relief', isAvailable: true },
-      { _id: 'i2', name: 'Vitamin C', price: 350, priceLabel: 'per bottle', category: 'Supplements', isAvailable: true },
+    deliveryFee: 0,
+    minOrder: 0,
+    previewProducts: [
+      { id: 'p1', name: 'Panadol', price: 50, unit: 'per pack' },
+      { id: 'p2', name: 'Vitamin C', price: 350, unit: 'per bottle' },
     ],
   },
   {
     id: '4',
     name: 'Tech Hub Electronics',
-    category: 'fundi',
+    category: 'electronics',
     categoryName: 'Electronics',
     color: '#3B82F6',
     rating: 4.6,
     distance: '2.1km',
-    isActive: true,
+    isOpen: true,
     isVerified: true,
     address: 'CBD, Moi Avenue',
     phone: '+254700000004',
     whatsapp: '254700000004',
     description: 'Phone and laptop accessories, repairs.',
-    radiusKm: 8,
-    capabilities: { canBeContacted: true, hasShowcase: true, hasShop: true, takesBookings: false },
-    showcaseItems: [
-      { _id: 'i1', name: 'Phone Charger', price: 450, priceLabel: 'each', category: 'Accessories', isAvailable: true },
-      { _id: 'i2', name: 'Power Bank', price: 2200, priceLabel: 'each', category: 'Power', isAvailable: true },
+    deliveryFee: 120,
+    minOrder: 500,
+    previewProducts: [
+      { id: 'p1', name: 'Phone Charger', price: 450, unit: 'each' },
+      { id: 'p2', name: 'Power Bank', price: 2200, unit: 'each' },
+    ],
+  },
+  {
+    id: '5',
+    name: 'Fashion Boutique',
+    category: 'clothing',
+    categoryName: 'Clothing',
+    color: '#A855F7',
+    rating: 4.3,
+    distance: '1.8km',
+    isOpen: false,
+    isVerified: true,
+    address: 'The Hub Karen',
+    phone: '+254722000005',
+    whatsapp: '254722000005',
+    description: 'Trendy fashion wear for all occasions.',
+    deliveryFee: 150,
+    minOrder: 1000,
+    previewProducts: [
+      { id: 'p1', name: 'Dresses', price: 1500, unit: 'each' },
+      { id: 'p2', name: 'Shirts', price: 800, unit: 'each' },
+    ],
+  },
+  {
+    id: '6',
+    name: 'Hardware Centre',
+    category: 'hardware',
+    categoryName: 'Hardware',
+    color: '#FF8C00',
+    rating: 4.7,
+    distance: '3.0km',
+    isOpen: true,
+    isVerified: true,
+    address: "Lang'ata Road",
+    phone: '+254733000006',
+    whatsapp: '254733000006',
+    description: 'Building materials and hardware supplies.',
+    deliveryFee: 200,
+    minOrder: 500,
+    previewProducts: [
+      { id: 'p1', name: 'Paint', price: 1200, unit: 'per gallon' },
+      { id: 'p2', name: 'Cement', price: 650, unit: 'per bag' },
     ],
   },
 ];
 
 const CATEGORIES = [
-  { id: 'all',    name: 'All' },
-  { id: 'food',   name: 'Food' },
-  { id: 'health', name: 'Health' },
-  { id: 'fundi',  name: 'Electronics' },
-  { id: 'grocery', name: 'Grocery' },
+  { id: 'all',         name: 'All',         color: '#FF4444', icon: 'apps-outline' },
+  { id: 'grocery',     name: 'Grocery',     color: '#22C55E', icon: 'cart-outline' },
+  { id: 'health',      name: 'Pharmacy',    color: '#14B8A6', icon: 'medkit-outline' },
+  { id: 'electronics', name: 'Electronics', color: '#3B82F6', icon: 'phone-portrait-outline' },
+  { id: 'clothing',    name: 'Clothing',    color: '#A855F7', icon: 'shirt-outline' },
+  { id: 'hardware',    name: 'Hardware',    color: '#FF8C00', icon: 'construct-outline' },
+  { id: 'food',        name: 'Food',        color: '#F97316', icon: 'restaurant-outline' },
 ];
 
 const getCategoryIcon = (category) => {
   const map = {
-    grocery: 'shopping-basket',
-    health: 'medkit',
-    fundi: 'mobile',
-    food: 'cutlery',
-    salon: 'scissors',
-    delivery: 'motorcycle',
-    bodaboda: 'motorcycle',
-    tutor: 'book',
+    grocery: 'cart-outline',
+    health: 'medkit-outline',
+    electronics: 'phone-portrait-outline',
+    food: 'restaurant-outline',
+    clothing: 'shirt-outline',
+    hardware: 'construct-outline',
   };
-  return map[category] || 'store';
+  return map[category] || 'storefront-outline';
 };
 
 export default function MarketplaceScreen({ navigation }) {
@@ -136,17 +177,17 @@ export default function MarketplaceScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
 
-  const filteredProviders = useCallback(() => {
-    let list = DUMMY_PROVIDERS;
+  const filteredShops = useCallback(() => {
+    let list = DUMMY_SHOPS;
     if (activeCategory !== 'all') {
-      list = list.filter(p => p.category === activeCategory);
+      list = list.filter(shop => shop.category === activeCategory);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        p.showcaseItems?.some(i => i.name.toLowerCase().includes(q))
+      list = list.filter(shop =>
+        shop.name.toLowerCase().includes(q) ||
+        shop.description?.toLowerCase().includes(q) ||
+        shop.previewProducts?.some(p => p.name.toLowerCase().includes(q))
       );
     }
     return list;
@@ -158,290 +199,529 @@ export default function MarketplaceScreen({ navigation }) {
     setTimeout(() => setRefreshing(false), 1200);
   };
 
-  const handleProviderPress = (provider) => {
+  const handleShopPress = (shop) => {
     Haptics.selectionAsync();
-    navigation.navigate('Shop', { provider });
+    navigation.navigate('Shop', { shop });
   };
 
-  const providers = filteredProviders();
+  const shops = filteredShops();
 
-  const renderCard = ({ item: provider }) => {
-    const icon = getCategoryIcon(provider.category);
-    const hasShop = provider.capabilities?.hasShop;
-    const previewItems = provider.showcaseItems?.slice(0, 3) || [];
+  // ─── HEADER ──────────────────────────────────────────────────────────────────
+  const renderHeader = () => (
+    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Marketplace</Text>
+          <View style={styles.nearbyPill}>
+            <Text style={styles.nearbyText}>{shops.length} nearby</Text>
+          </View>
+        </View>
+        <View style={styles.locRow}>
+          <Ionicons name="location-outline" size={10} color={colors.primary} />
+          <Text style={styles.locText}>Nairobi, KE</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  // ─── CATEGORY CHIPS ──────────────────────────────────────────────────────────
+  const renderChips = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.chipsScroll}
+      contentContainerStyle={styles.chipsContainer}
+    >
+      {CATEGORIES.map(cat => (
+        <TouchableOpacity
+          key={cat.id}
+          style={[styles.chip, activeCategory === cat.id && styles.chipActive]}
+          onPress={() => {
+            Haptics.selectionAsync();
+            setActiveCategory(cat.id);
+          }}
+        >
+          <Ionicons 
+            name={cat.icon} 
+            size={12} 
+            color={activeCategory === cat.id ? colors.primaryLight : colors.textDim} 
+          />
+          <Text style={[styles.chipText, activeCategory === cat.id && styles.chipTextActive]}>
+            {cat.name}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+
+  // ─── SEARCH ──────────────────────────────────────────────────────────────────
+  const renderSearch = () => (
+    <View style={styles.searchBar}>
+      <Ionicons name="search-outline" size={16} color={colors.textDim} style={{ marginRight: 9 }} />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search shops or products..."
+        placeholderTextColor={colors.textFaint}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      {searchQuery !== '' && (
+        <TouchableOpacity onPress={() => setSearchQuery('')}>
+          <Ionicons name="close-circle-outline" size={16} color={colors.textDim} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  // ─── RESULTS ROW ─────────────────────────────────────────────────────────────
+  const renderResultsRow = () => (
+    <View style={styles.resultsRow}>
+      <Text style={styles.resultsCount}>
+        {shops.length} shops near you
+      </Text>
+      <TouchableOpacity style={styles.sortBtn}>
+        <Ionicons name="funnel-outline" size={12} color={colors.primaryLight} />
+        <Text style={styles.sortText}>Nearest</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ─── SHOP CARD ───────────────────────────────────────────────────────────────
+  const renderShopCard = ({ item: shop }) => {
+    const icon = getCategoryIcon(shop.category);
+    const previewItems = shop.previewProducts?.slice(0, 3) || [];
 
     return (
       <TouchableOpacity
-        style={[styles.card, !provider.isActive && styles.cardClosed]}
-        onPress={() => handleProviderPress(provider)}
+        style={[styles.card, !shop.isOpen && styles.cardClosed]}
+        onPress={() => handleShopPress(shop)}
         activeOpacity={0.75}
       >
         {/* Top row */}
         <View style={styles.cardTop}>
-          <View style={[styles.providerIcon, { backgroundColor: provider.color + '18', borderColor: provider.color + '30' }]}>
-            <Icon name={icon} size={20} color={provider.color} />
+          <View style={[styles.catIcon, { backgroundColor: shop.color + '14' }]}>
+            <Ionicons name={icon} size={22} color={shop.color} />
           </View>
-          <View style={styles.providerMeta}>
+          <View style={styles.shopMeta}>
             <View style={styles.nameRow}>
-              <Text style={styles.providerName} numberOfLines={1}>{provider.name}</Text>
-              {provider.isVerified && (
-                <Icon name="check-circle" size={11} color={colors.success} />
+              <Text style={styles.shopName} numberOfLines={1}>{shop.name}</Text>
+              {shop.isVerified && (
+                <Ionicons name="checkmark-circle" size={12} color="#22C55E" />
               )}
             </View>
-            <View style={styles.metaSubRow}>
-              <Icon name="star" size={10} color="#FBBF24" />
-              <Text style={styles.ratingText}>{provider.rating}</Text>
-              <Text style={styles.sep}>·</Text>
-              <Icon name="map-marker" size={10} color={colors.textDim} />
-              <Text style={styles.distText}>{provider.distance}</Text>
-              <Text style={styles.sep}>·</Text>
-              <View style={[styles.statusPill, { backgroundColor: provider.isActive ? 'rgba(34,197,94,0.1)' : colors.primarySurface }]}>
-                <View style={[styles.statusDot, { backgroundColor: provider.isActive ? colors.success : colors.textDim }]} />
-                <Text style={[styles.statusText, { color: provider.isActive ? colors.success : colors.textMuted }]}>
-                  {provider.isActive ? 'Open' : 'Closed'}
+            <View style={styles.shopSub}>
+              <Ionicons name="star" size={11} color="#FBBF24" />
+              <Text style={styles.ratingText}>{shop.rating}</Text>
+              <Text style={styles.sep}>•</Text>
+              <Text style={styles.distText}>{shop.distance}</Text>
+              <Text style={styles.sep}>•</Text>
+              <View style={[styles.statusPill, shop.isOpen ? styles.statusOpen : styles.statusClosed]}>
+                <Text style={[styles.statusText, { color: shop.isOpen ? '#22C55E' : colors.primary }]}>
+                  {shop.isOpen ? 'Open' : 'Closed'}
                 </Text>
               </View>
             </View>
             <View style={styles.addrRow}>
-              <Icon name="map-marker" size={9} color={colors.textFaint} />
-              <Text style={styles.addrText} numberOfLines={1}>{provider.address}</Text>
+              <Ionicons name="location-outline" size={10} color={colors.textFaint} />
+              <Text style={styles.addrText} numberOfLines={1}>{shop.address}</Text>
             </View>
           </View>
-          <Icon name="chevron-right" size={13} color={colors.textFaint} />
+          <Ionicons name="chevron-forward-outline" size={14} color={colors.textFaint} />
         </View>
 
         {/* Description */}
-        {provider.description ? (
-          <Text style={styles.providerDesc} numberOfLines={1}>{provider.description}</Text>
-        ) : null}
+        {shop.description && (
+          <Text style={styles.shopDesc} numberOfLines={1}>{shop.description}</Text>
+        )}
 
-        {/* Preview items */}
+        {/* Preview products */}
         {previewItems.length > 0 && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.previewRow}
+            contentContainerStyle={styles.tagsContainer}
           >
             {previewItems.map(item => (
-              <View key={item._id} style={[styles.previewTag, { borderColor: provider.color + '30' }]}>
-                <Text style={[styles.previewTagText, { color: provider.color }]}>{item.name}</Text>
-                <Text style={styles.previewTagPrice}>KSh {item.price}</Text>
+              <View key={item.id} style={styles.tag}>
+                <Text style={styles.tagText}>{item.name}</Text>
+                <Text style={styles.tagPrice}>KES {item.price}</Text>
               </View>
             ))}
-            {provider.showcaseItems?.length > 3 && (
-              <View style={[styles.previewTag, { borderColor: colors.border }]}>
-                <Text style={styles.previewTagMuted}>+{provider.showcaseItems.length - 3} more</Text>
+            {shop.previewProducts?.length > 3 && (
+              <View style={styles.tag}>
+                <Text style={styles.tagMuted}>+{shop.previewProducts.length - 3} more</Text>
               </View>
             )}
           </ScrollView>
         )}
 
-        {/* Footer */}
+        {/* Footer - Delivery info */}
         <View style={styles.cardFooter}>
-          <View style={styles.capRow}>
-            {hasShop && (
-              <View style={[styles.capChip, { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder }]}>
-                <Icon name="shopping-cart" size={9} color={colors.primary} />
-                <Text style={[styles.capChipText, { color: colors.primary }]}>Shop</Text>
-              </View>
-            )}
-            {!hasShop && provider.capabilities?.hasShowcase && (
-              <View style={[styles.capChip, { backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.25)' }]}>
-                <Icon name="th-large" size={9} color="#3B82F6" />
-                <Text style={[styles.capChipText, { color: '#3B82F6' }]}>Showcase</Text>
-              </View>
+          <View style={styles.deliveryRow}>
+            <Ionicons name="bicycle-outline" size={13} color={colors.primary} />
+            <Text style={styles.feeText}>
+              {shop.deliveryFee === 0 ? 'Free delivery' : `KES ${shop.deliveryFee}`}
+            </Text>
+            {shop.deliveryFee > 0 && shop.minOrder > 0 && (
+              <>
+                <Text style={styles.sep}>•</Text>
+                <Text style={styles.minText}>Min KES {shop.minOrder}</Text>
+              </>
             )}
           </View>
           <TouchableOpacity
-            style={[styles.viewBtn, { backgroundColor: provider.color + '18', borderColor: provider.color + '35' }]}
-            onPress={() => handleProviderPress(provider)}
+            style={styles.viewBtn}
+            onPress={() => handleShopPress(shop)}
           >
-            <Text style={[styles.viewBtnText, { color: provider.color }]}>
-              {hasShop ? 'View Shop' : 'View Showcase'}
-            </Text>
+            <Text style={styles.viewBtnText}>View Shop</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
   };
 
+  // ─── EMPTY STATE ─────────────────────────────────────────────────────────────
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="storefront-outline" size={48} color={colors.textFaint} />
+      <Text style={styles.emptyTitle}>No shops found</Text>
+      <Text style={styles.emptySub}>Try adjusting your filters or search</Text>
+    </View>
+  );
+
   return (
-    <View style={styles.root}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <View>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>Marketplace</Text>
-            <View style={styles.nearbyPill}>
-              <Text style={styles.nearbyText}>{providers.length} nearby</Text>
-            </View>
-          </View>
-          <View style={styles.locRow}>
-            <Icon name="map-marker" size={10} color={colors.primary} />
-            <Text style={styles.locText}>Nairobi, KE</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Category chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipsScroll}
-        contentContainerStyle={styles.chipsContent}
-      >
-        {CATEGORIES.map(cat => (
-          <TouchableOpacity
-            key={cat.id}
-            style={[styles.chip, activeCategory === cat.id && styles.chipActive]}
-            onPress={() => { Haptics.selectionAsync(); setActiveCategory(cat.id); }}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.chipText, activeCategory === cat.id && styles.chipTextActive]}>
-              {cat.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Search */}
-      <View style={styles.searchBar}>
-        <Icon name="search" size={13} color={colors.textDim} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search shops or products..."
-          placeholderTextColor={colors.textFaint}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery !== '' && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="times-circle" size={13} color={colors.textDim} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Results count */}
-      <View style={styles.resultsRow}>
-        <Text style={styles.resultsText}>{providers.length} shops near you</Text>
-      </View>
-
+      {renderHeader()}
+      {renderChips()}
+      {renderSearch()}
+      {renderResultsRow()}
       <FlatList
-        data={providers}
-        renderItem={renderCard}
+        data={shops}
+        renderItem={renderShopCard}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
         }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Icon name="store" size={36} color={colors.textFaint} />
-            <Text style={styles.emptyTitle}>No shops found</Text>
-            <Text style={styles.emptySub}>Try adjusting your filters</Text>
-          </View>
-        }
+        ListEmptyComponent={renderEmpty}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  // ── Header
   header: {
-    paddingHorizontal: 16, paddingBottom: 10,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 20, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
   nearbyPill: {
-    backgroundColor: colors.primarySurface, borderWidth: 1,
-    borderColor: colors.primaryBorder, borderRadius: 20,
-    paddingHorizontal: 9, paddingVertical: 2,
+    backgroundColor: colors.primarySurface,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 2,
   },
-  nearbyText: { fontSize: 11, fontWeight: '600', color: colors.primary },
-  locRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  locText: { fontSize: 11, color: colors.textDim },
-  chipsScroll: { height: 46, flexGrow: 0 },
-  chipsContent: { paddingHorizontal: 16, alignItems: 'center', gap: 7 },
+  nearbyText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primaryLight,
+  },
+  locRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  locText: {
+    fontSize: 11,
+    color: colors.textDim,
+  },
+
+  // ── Chips
+  chipsScroll: {
+    height: 46,
+    marginBottom: 6,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  chipsContainer: {
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 7,
+  },
   chip: {
-    paddingHorizontal: 14, height: 32, borderRadius: 20,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
-  chipText: { fontSize: 12, fontWeight: '500', color: colors.textDim },
-  chipTextActive: { fontWeight: '700', color: colors.primary },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 9,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 11, marginHorizontal: 16, marginBottom: 10,
-    height: 42, paddingHorizontal: 13,
-  },
-  searchInput: { flex: 1, fontSize: 13, color: colors.text },
-  resultsRow: { paddingHorizontal: 16, marginBottom: 8 },
-  resultsText: { fontSize: 11, color: colors.textFaint },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
-
-  // Card
-  card: {
-    backgroundColor: colors.surface, borderWidth: 1,
-    borderColor: colors.border, borderRadius: 16, overflow: 'hidden', gap: 0,
-  },
-  cardClosed: { opacity: 0.5 },
-  cardTop: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14, paddingBottom: 10,
-  },
-  providerIcon: {
-    width: 46, height: 46, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, flexShrink: 0,
-  },
-  providerMeta: { flex: 1, gap: 3 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  providerName: { fontSize: 14, fontWeight: '700', color: colors.text, flex: 1 },
-  metaSubRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { fontSize: 11, color: '#FBBF24', fontWeight: '600' },
-  sep: { color: colors.textFaint, fontSize: 10 },
-  distText: { fontSize: 11, color: colors.textDim },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  statusDot: { width: 5, height: 5, borderRadius: 3 },
-  statusText: { fontSize: 10, fontWeight: '600' },
-  addrRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  addrText: { fontSize: 10, color: colors.textFaint },
-  providerDesc: { fontSize: 12, color: colors.textDim, paddingHorizontal: 14, paddingBottom: 8, lineHeight: 17 },
-  previewRow: { paddingHorizontal: 14, paddingBottom: 10, gap: 6 },
-  previewTag: {
-    borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5, gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    height: 32,
+    borderRadius: 20,
     backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
-  previewTagText: { fontSize: 11, fontWeight: '600' },
-  previewTagPrice: { fontSize: 10, color: colors.textDim },
-  previewTagMuted: { fontSize: 11, color: colors.textDim, fontWeight: '500' },
-  cardFooter: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderTopWidth: 1, borderTopColor: colors.border,
-    paddingHorizontal: 14, paddingVertical: 10,
+  chipActive: {
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primaryBorder,
   },
-  capRow: { flexDirection: 'row', gap: 6 },
-  capChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 8, borderWidth: 1,
+  chipText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textDim,
   },
-  capChipText: { fontSize: 10, fontWeight: '700' },
-  viewBtn: {
-    paddingHorizontal: 14, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1,
+  chipTextActive: {
+    fontWeight: '600',
+    color: colors.primaryLight,
   },
-  viewBtnText: { fontSize: 11, fontWeight: '700' },
 
-  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: colors.textDim },
-  emptySub: { fontSize: 12, color: colors.textFaint },
+  // ── Search
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 11,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    height: 42,
+    paddingHorizontal: 13,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+  },
+
+  // ── Results row
+  resultsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  resultsCount: {
+    fontSize: 11,
+    color: colors.textFaint,
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  sortText: {
+    fontSize: 11,
+    color: colors.primaryLight,
+  },
+
+  // ── List
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 9,
+  },
+
+  // ── Card
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 13,
+    overflow: 'hidden',
+  },
+  cardClosed: {
+    opacity: 0.55,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    padding: 13,
+    paddingBottom: 10,
+  },
+  catIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  shopMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 3,
+  },
+  shopName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+  },
+  shopSub: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  ratingText: {
+    fontSize: 11,
+    color: '#FBBF24',
+  },
+  sep: {
+    color: colors.border,
+    fontSize: 11,
+  },
+  distText: {
+    fontSize: 11,
+    color: colors.textDim,
+  },
+  statusPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  statusOpen: {
+    backgroundColor: 'rgba(34,197,94,0.1)',
+  },
+  statusClosed: {
+    backgroundColor: colors.primarySurface,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  addrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  addrText: {
+    fontSize: 10,
+    color: colors.textFaint,
+  },
+  shopDesc: {
+    fontSize: 11,
+    color: colors.textDim,
+    paddingHorizontal: 13,
+    paddingBottom: 8,
+  },
+
+  // ── Tags
+  tagsContainer: {
+    paddingHorizontal: 13,
+    paddingBottom: 10,
+    gap: 5,
+  },
+  tag: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    marginRight: 5,
+    gap: 2,
+  },
+  tagText: {
+    fontSize: 10,
+    color: colors.textDim,
+    fontWeight: '500',
+  },
+  tagPrice: {
+    fontSize: 9,
+    color: colors.textFaint,
+  },
+  tagMuted: {
+    fontSize: 10,
+    color: colors.textDim,
+  },
+
+  // ── Card footer
+  cardFooter: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  deliveryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  feeText: {
+    fontSize: 11,
+    color: colors.primary,
+  },
+  minText: {
+    fontSize: 11,
+    color: colors.textDim,
+  },
+  viewBtn: {
+    backgroundColor: colors.primarySurface,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 5,
+  },
+  viewBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primaryLight,
+  },
+
+  // ── Empty
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textDim,
+    marginTop: 12,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: colors.textFaint,
+    marginTop: 4,
+  },
 });
