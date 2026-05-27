@@ -195,6 +195,7 @@ const styles = StyleSheet.create({
     marginTop: -20,
     ...theme.shadowRed,
   },
+  
   centerLogoContainer: {
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
