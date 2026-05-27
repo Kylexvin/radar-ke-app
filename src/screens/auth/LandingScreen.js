@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,16 @@ import {
   Image,
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import * as Location from 'expo-location';
 import theme from '../../utils/theme';
 
 const { width, height } = Dimensions.get('window');
 
-const NAIROBI_COORDINATES = {
+const DEFAULT_REGION = {
   latitude: -1.286389,
   longitude: 36.817223,
+  latitudeDelta: 0.035,
+  longitudeDelta: 0.035,
 };
 
 const DARK_MAP_STYLE = [
@@ -41,60 +44,121 @@ const DARK_MAP_STYLE = [
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d3d3d' }] },
 ];
 
-
 const LOGO_IMAGE = require('../../../assets/logo.jpg');
-
 
 const LandingScreen = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(60)).current;
+  const pulseAnim1 = useRef(new Animated.Value(0)).current;
+  const pulseAnim2 = useRef(new Animated.Value(0)).current;
+  const pulseAnim3 = useRef(new Animated.Value(0)).current;
+  const dotAnim = useRef(new Animated.Value(1)).current;
+
+  const [cityLabel, setCityLabel] = useState('Live');
+  const [mapRegion, setMapRegion] = useState(DEFAULT_REGION);
 
   useEffect(() => {
+    // Panel entrance
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 700, delay: 400, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 700, delay: 400, useNativeDriver: true }),
     ]).start();
+
+    // Live dot pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotAnim, { toValue: 0.2, duration: 800, useNativeDriver: true }),
+        Animated.timing(dotAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Radar pulse rings — staggered
+    const pulse = (anim, delay) => {
+      anim.setValue(0);
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: 1, duration: 2500, useNativeDriver: true }),
+      ]).start(() => pulse(anim, delay));
+    };
+    pulse(pulseAnim1, 0);
+    pulse(pulseAnim2, 800);
+    pulse(pulseAnim3, 1600);
+
+    // Location
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      setMapRegion({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.035,
+        longitudeDelta: 0.035,
+      });
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+      if (place?.city) setCityLabel(place.city);
+    })();
   }, []);
+
+  const makePulseStyle = (anim) => ({
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 2.8] }) }],
+    opacity: anim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.7, 0.4, 0] }),
+  });
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Map Section - reduced height */}
+      {/* Map Section */}
       <View style={styles.mapContainer}>
         <MapView
           style={styles.map}
           provider={PROVIDER_GOOGLE}
           customMapStyle={DARK_MAP_STYLE}
-          initialRegion={{
-            ...NAIROBI_COORDINATES,
-            latitudeDelta: 0.035,
-            longitudeDelta: 0.035,
-          }}
+          region={mapRegion}
           scrollEnabled={false}
           zoomEnabled={false}
           pitchEnabled={false}
           rotateEnabled={false}
         />
-        
+
+        {/* Radar pulse rings */}
+        <View style={styles.radarCenter} pointerEvents="none">
+          <Animated.View style={[styles.pulseRing, makePulseStyle(pulseAnim1)]} />
+          <Animated.View style={[styles.pulseRing, makePulseStyle(pulseAnim2)]} />
+          <Animated.View style={[styles.pulseRing, makePulseStyle(pulseAnim3)]} />
+          <View style={styles.centerDotOuter}>
+            <View style={styles.centerDotInner} />
+          </View>
+        </View>
+
+        {/* Live pill */}
+        <View style={styles.livePill}>
+          <Animated.View style={[styles.livePillDot, { opacity: dotAnim }]} />
+          <Text style={styles.livePillText}>{cityLabel} · Live</Text>
+        </View>
+
         {/* Dark vignette overlay */}
         <View style={styles.vignette} pointerEvents="none" />
       </View>
 
-      {/* Colored border separator between map and content */}
+      {/* Colored border separator */}
       <View style={styles.borderSeparator} />
 
-      {/* Bottom content panel with curved corners */}
+      {/* Bottom content panel */}
       <Animated.View
         style={[
           styles.bottomPanel,
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
-        {/* Logo + Brand - centered */}
+        {/* Logo + Brand - centered, YOUR original layout */}
         <View style={styles.centerLogoContainer}>
           <View style={styles.logoCircle}>
-            <Image 
+            <Image
               source={LOGO_IMAGE}
               style={styles.logoImage}
               resizeMode="contain"
@@ -104,53 +168,44 @@ const LandingScreen = ({ navigation }) => {
           <Text style={styles.tagline}>Scan your environment. Find what's near you.</Text>
         </View>
 
-        {/* Stats row */}
+        {/* Indicators row — replaces stats */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>2,400+</Text>
-            <Text style={styles.statLabel}>Providers</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>18</Text>
-            <Text style={styles.statLabel}>Categories</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>Live</Text>
+            <Text style={styles.indIcon}>⦿</Text>
             <Text style={styles.statLabel}>Real-time</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.indIcon}>◎</Text>
+            <Text style={styles.statLabel}>Anywhere</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <View style={styles.livePillInline}>
+              <Animated.View style={[styles.liveDot, { opacity: dotAnim }]} />
+              <Text style={styles.livePillText2}>{cityLabel}</Text>
+            </View>
+            <Text style={styles.statLabel}>Live</Text>
           </View>
         </View>
 
         {/* Buttons */}
         <View style={styles.buttonRow}>
-          <TouchableOpacity 
-            style={styles.loginBtn} 
+          <TouchableOpacity
+            style={styles.loginBtn}
             activeOpacity={0.8}
             onPress={() => navigation.navigate('Login')}
           >
             <Text style={styles.loginBtnText}>Log In</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.signupBtn} 
+          <TouchableOpacity
+            style={styles.signupBtn}
             activeOpacity={0.8}
             onPress={() => navigation.navigate('Register')}
           >
             <Text style={styles.signupBtnText}>Get Started</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Guest - commented out */}
-        {/* <TouchableOpacity 
-          style={styles.guestBtn} 
-          activeOpacity={0.7}
-          onPress={() => {
-            // Handle guest navigation
-            console.log('Guest mode - navigate to main app');
-          }}
-        >
-          <Text style={styles.guestText}>Explore as Guest  →</Text>
-        </TouchableOpacity> */}
 
         {/* Version footer */}
         <View style={styles.footer}>
@@ -178,6 +233,68 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: theme.colors.mapOverlay,
   },
+  radarCenter: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginTop: -60,
+    marginLeft: -60,
+    width: 120,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+  },
+  centerDotOuter: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+  },
+  livePill: {
+    position: 'absolute',
+    top: 52,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    zIndex: 3,
+  },
+  livePillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  livePillText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    fontWeight: '500',
+  },
   borderSeparator: {
     height: 2,
     backgroundColor: theme.colors.primary,
@@ -190,12 +307,11 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.xl,
     paddingBottom: theme.spacing.xl,
     backgroundColor: theme.colors.background,
-    borderTopLeftRadius: 28,    
+    borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     marginTop: -20,
     ...theme.shadowRed,
   },
-  
   centerLogoContainer: {
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
@@ -211,7 +327,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.colors.borderLight,
     ...theme.shadowRed,
-    overflow: 'hidden', // Important: ensures image respects border radius
+    overflow: 'hidden',
   },
   logoImage: {
     width: '100%',
@@ -245,12 +361,12 @@ const styles = StyleSheet.create({
   statItem: {
     flex: 1,
     alignItems: 'center',
+    gap: 4,
   },
-  statNumber: {
+  indIcon: {
     fontSize: 18,
-    fontWeight: '700',
     color: theme.colors.primaryMuted,
-    marginBottom: 2,
+    lineHeight: 22,
   },
   statLabel: {
     ...theme.typography.caption,
@@ -261,6 +377,22 @@ const styles = StyleSheet.create({
     width: 0.5,
     height: 30,
     backgroundColor: theme.colors.border,
+  },
+  livePillInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  livePillText2: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.primaryMuted,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -291,16 +423,6 @@ const styles = StyleSheet.create({
   signupBtnText: {
     color: theme.colors.text,
     ...theme.typography.buttonLarge,
-  },
-  guestBtn: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  guestText: {
-    color: theme.colors.textDim,
-    fontSize: 13,
-    letterSpacing: 0.3,
   },
   footer: {
     alignItems: 'center',
